@@ -1,0 +1,20 @@
+services:
+  whoami:
+    build:
+      context: .
+      args:
+        - VERSION=${VERSION:-dev}
+    restart: always
+    networks:
+      - caddy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 50M
+    environment:
+      - PORT=${PORT:-8080}
+
+networks:
+  caddy:
+    external: true

@@ -1,0 +1,29 @@
+name: whoami
+services:
+  whoami:
+    build:
+      context: .
+      args:
+        - VERSION=${VERSION:-dev}
+    restart: always
+    networks:
+      - caddy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 50M
+    environment:
+      - PORT=${PORT:-8080}
+    volumes:
+      - ./.data/hello-world:/app/hello-world
+    secrets:
+      - hello
+
+secrets:
+  hello:
+    file: .secrets/hello
+
+networks:
+  caddy:
+    external: true

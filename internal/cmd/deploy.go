@@ -151,7 +151,7 @@ func (a *deployAction) dockerCompose(ctx context.Context, c *cli.Command) error 
 	if err := a.executeOverSSH(ctx, sshClient, fmt.Sprintf("cd /root/projects/%s && VERSION=%s docker compose build", name, version)); err != nil {
 		return fmt.Errorf("failed to build containers: %w", err)
 	}
-	if err := a.executeOverSSH(ctx, sshClient, fmt.Sprintf("cd /root/projects/%s && VERSION=%s docker compose up -d", name, version)); err != nil {
+	if err := a.executeOverSSH(ctx, sshClient, fmt.Sprintf("cd /root/projects/%s && VERSION=%s docker compose up -d --remove-orphans", name, version)); err != nil {
 		return fmt.Errorf("failed to start containers: %w", err)
 	}
 	return nil

@@ -1,3 +1,4 @@
+name: whoami
 services:
   whoami:
     build:

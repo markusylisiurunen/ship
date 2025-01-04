@@ -23,5 +23,5 @@ jobs:
         working-directory: ./whoami
 
       - name: ship whoami
-        run: ship --name whoami --version $(git rev-parse --short HEAD) --host ${{ secrets.WHOAMI_HOST }} --password ${{ secrets.WHOAMI_PASSWORD }}
+        run: ship deploy --name whoami --version $(git rev-parse --short HEAD) --host ${{ secrets.WHOAMI_HOST }} --password ${{ secrets.WHOAMI_PASSWORD }}
         working-directory: ./whoami

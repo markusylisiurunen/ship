@@ -19,7 +19,7 @@ jobs:
         run: go install github.com/markusylisiurunen/ship/cmd/ship@latest
 
       - name: configure domain
-        run: sed 's/whoami.example.com/${{ secrets.WHOAMI_DOMAIN }}/' Caddyfile
+        run: sed -i 's/whoami.example.com/${{ secrets.WHOAMI_DOMAIN }}/' Caddyfile
         working-directory: ./whoami
 
       - name: ship whoami

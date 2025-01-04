@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"ship/internal/cmd"
+
+	"github.com/markusylisiurunen/ship/internal/cmd"
 )
 
 func main() {

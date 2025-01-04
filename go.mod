@@ -1,4 +1,4 @@
-module ship
+module github.com/markusylisiurunen/ship
 
 go 1.23.4
 

@@ -16,7 +16,7 @@ jobs:
         uses: actions/setup-go@v5
 
       - name: install ship
-        run: GOPROXY=direct go install github.com/markusylisiurunen/ship/cmd/ship@main
+        run: go install github.com/markusylisiurunen/ship/cmd/ship@main
 
       - name: configure domain
         run: sed 's/whoami.example.com/${{ secrets.WHOAMI_DOMAIN }}/' Caddyfile

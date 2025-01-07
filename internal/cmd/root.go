@@ -42,5 +42,6 @@ func Execute(ctx context.Context) {
 	}
 	if err := cmd.Run(ctx, os.Args); err != nil {
 		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
 	}
 }

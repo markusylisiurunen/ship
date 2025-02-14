@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 
+	"github.com/markusylisiurunen/ship/internal/log"
 	"github.com/urfave/cli/v3"
 )
 
@@ -41,7 +41,7 @@ func Execute(ctx context.Context) {
 		},
 	}
 	if err := cmd.Run(ctx, os.Args); err != nil {
-		fmt.Printf("Error: %v\n", err)
+		log.Errorf("%v", err)
 		os.Exit(1)
 	}
 }

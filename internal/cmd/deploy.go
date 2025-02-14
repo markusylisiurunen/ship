@@ -3,6 +3,7 @@ package cmd
 import (
 	"archive/zip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,63 +11,100 @@ import (
 	"time"
 
 	"github.com/bramvdbogaerde/go-scp"
+	"github.com/markusylisiurunen/ship/internal/log"
+	"github.com/markusylisiurunen/ship/internal/util"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/crypto/ssh"
 )
 
-type deployAction struct{}
+type deployAction struct {
+	client *ssh.Client
+}
 
 func newDeployAction() *deployAction {
 	return &deployAction{}
 }
 
 func (a *deployAction) action(ctx context.Context, c *cli.Command) error {
-	steps := []func(context.Context, *cli.Command) error{
-		a.archiveDirectory,
-		a.copyArchiveToRemote,
-		a.dockerCompose,
-		a.caddyfile,
+	if err := a.connectClient(c); err != nil {
+		return err
 	}
-	for _, step := range steps {
-		err := step(ctx, c)
+	defer a.client.Close()
+	if err := a.assertDeployable(c); err != nil {
+		return err
+	}
+	type CleanupFn = func()
+	type StepFn = func(context.Context, *cli.Command) (CleanupFn, error)
+	cleanupFns := make([]CleanupFn, 0)
+	defer func() {
+		for _, cleanupFn := range cleanupFns {
+			if cleanupFn != nil {
+				cleanupFn()
+			}
+		}
+	}()
+	stepFns := []StepFn{
+		a.stepArchive,
+		a.stepCopy,
+		a.stepLink,
+		a.stepDocker,
+		a.stepCaddy,
+	}
+	for _, stepFn := range stepFns {
+		cleanupFn, err := stepFn(ctx, c)
 		if err != nil {
 			return err
 		}
+		cleanupFns = append(cleanupFns, cleanupFn)
 	}
 	return nil
 }
 
-func (a *deployAction) archiveDirectory(ctx context.Context, c *cli.Command) error {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get working directory: %w", err)
-	}
+// steps
+// ---
+
+func (a *deployAction) stepArchive(ctx context.Context, c *cli.Command) (func(), error) {
+	var cleanupFn func()
+	// create the archive.zip file
 	archive, err := os.Create("archive.zip")
 	if err != nil {
-		return fmt.Errorf("failed to create archive: %w", err)
+		return cleanupFn, fmt.Errorf("failed to create archive: %w", err)
 	}
 	defer archive.Close()
+	// cleanup the archive file
+	cleanupFn = func() {
+		if err := os.Remove("archive.zip"); err != nil {
+			log.Errorf("failed to remove archive: %v", err)
+		}
+	}
+	// create the zip writer
 	zipWriter := zip.NewWriter(archive)
 	defer zipWriter.Close()
-	err = filepath.Walk(cwd, func(path string, info os.FileInfo, err error) error {
+	// walk the current working directory and add files to the archive
+	cwd, err := os.Getwd()
+	if err != nil {
+		return cleanupFn, fmt.Errorf("failed to get working directory: %w", err)
+	}
+	if err := filepath.Walk(cwd, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
 		}
 		relPath, err := filepath.Rel(cwd, path)
 		if err != nil {
 			return fmt.Errorf("failed to get relative path: %w", err)
 		}
+		// ignore the archive.zip file
 		if relPath == "archive.zip" {
 			return nil
 		}
+		// ignore the .git directory
+		if info.IsDir() && info.Name() == ".git" {
+			return filepath.SkipDir
+		}
+		// create the zip entry
 		header, err := zip.FileInfoHeader(info)
 		if err != nil {
-			return fmt.Errorf("failed to create header: %w", err)
+			return fmt.Errorf("failed to create zip file header: %w", err)
 		}
 		header.Name = relPath
 		if info.IsDir() {
@@ -80,116 +118,226 @@ func (a *deployAction) archiveDirectory(ctx context.Context, c *cli.Command) err
 		if info.IsDir() {
 			return nil
 		}
+		// write the file to the zip entry
 		file, err := os.Open(path)
 		if err != nil {
-			return fmt.Errorf("failed to open file %s: %w", path, err)
+			return fmt.Errorf("failed to open file %q: %w", path, err)
 		}
 		defer file.Close()
-		_, err = io.Copy(writer, file)
-		if err != nil {
-			return fmt.Errorf("failed to write file %s to archive: %w", path, err)
+		if _, err := io.Copy(writer, file); err != nil {
+			return fmt.Errorf("failed to write file %q to archive: %w", path, err)
 		}
 		return nil
+	}); err != nil {
+		return cleanupFn, fmt.Errorf("failed to walk directory: %w", err)
+	}
+	return cleanupFn, nil
+}
+
+func (a *deployAction) stepCopy(ctx context.Context, c *cli.Command) (func(), error) {
+	var cleanupFn func()
+	var doer util.Doer
+	doer.
+		Do(func() error {
+			cmd := fmt.Sprintf("mkdir -p /root/projects/%s/%s",
+				c.String("name"), c.String("version"))
+			return a.runCommand(cmd)
+		}).
+		Do(func() error {
+			client, err := scp.NewClientBySSH(a.client)
+			if err != nil {
+				return fmt.Errorf("failed to create scp client: %w", err)
+			}
+			defer client.Close()
+			archive, err := os.Open("archive.zip")
+			if err != nil {
+				return fmt.Errorf("failed to open archive: %w", err)
+			}
+			defer archive.Close()
+			if err := client.CopyFromFile(ctx, *archive,
+				fmt.Sprintf("/root/projects/%s/%s/archive.zip",
+					c.String("name"), c.String("version")),
+				"0655",
+			); err != nil {
+				return fmt.Errorf("failed to copy archive to remote: %w", err)
+			}
+			return nil
+		}).
+		Do(func() error {
+			cmd := fmt.Sprintf("unzip -o /root/projects/%s/%s/archive.zip -d /root/projects/%s/%s",
+				c.String("name"), c.String("version"), c.String("name"), c.String("version"))
+			return a.runCommand(cmd)
+		}).
+		Do(func() error {
+			cmd := fmt.Sprintf("rm /root/projects/%s/%s/archive.zip",
+				c.String("name"), c.String("version"))
+			return a.runSilentCommand(cmd)
+		})
+	return cleanupFn, doer.Err()
+}
+
+func (a *deployAction) stepLink(ctx context.Context, c *cli.Command) (func(), error) {
+	var cleanupFn func()
+	var doer util.Doer
+	doer.
+		Do(func() error {
+			cmd := fmt.Sprintf("ln -sfn /root/projects/%s/%s /root/projects/%s/.current",
+				c.String("name"), c.String("version"), c.String("name"))
+			return a.runCommand(cmd)
+		})
+	return cleanupFn, doer.Err()
+}
+
+func (a *deployAction) stepDocker(ctx context.Context, c *cli.Command) (func(), error) {
+	var cleanupFn func()
+	var doer util.Doer
+	doer.
+		Do(func() error {
+			cmd := fmt.Sprintf("cd /root/projects/%s/.current && docker compose pull",
+				c.String("name"))
+			return a.runCommand(cmd)
+		}).
+		Do(func() error {
+			cmd := fmt.Sprintf("cd /root/projects/%s/.current && VERSION=%s docker compose build",
+				c.String("name"), c.String("version"))
+			return a.runCommand(cmd)
+		}).
+		Do(func() error {
+			cmd := fmt.Sprintf("cd /root/projects/%s/.current && VERSION=%s docker compose up -d --remove-orphans",
+				c.String("name"), c.String("version"))
+			return a.runCommand(cmd)
+		})
+	return cleanupFn, doer.Err()
+}
+
+func (a *deployAction) stepCaddy(ctx context.Context, c *cli.Command) (func(), error) {
+	var cleanupFn func()
+	var doer util.Doer
+	doer.
+		Do(func() error {
+			cmd := "mkdir -p /root/_caddy/sites-enabled"
+			return a.runCommand(cmd)
+		}).
+		Do(func() error {
+			cmd := fmt.Sprintf("cp /root/projects/%s/.current/Caddyfile /root/_caddy/sites-enabled/%s",
+				c.String("name"), c.String("name"))
+			return a.runCommand(cmd)
+		}).
+		Do(func() error {
+			cmd := "cd /root/_caddy && docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile"
+			return a.runCommand(cmd)
+		})
+	return cleanupFn, doer.Err()
+}
+
+// helpers
+// ---
+
+func (a *deployAction) connectClient(c *cli.Command) error {
+	if a.client != nil {
+		return nil
+	}
+	var (
+		name     = c.String("name")
+		host     = c.String("host")
+		password = c.String("password")
+	)
+	if name == "" || host == "" || password == "" {
+		return errors.New("name, host and password are required")
+	}
+	client, err := ssh.Dial("tcp", host+":22", &ssh.ClientConfig{
+		User:            "root",
+		Auth:            []ssh.AuthMethod{ssh.Password(password)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to walk directory: %w", err)
-	}
-	return nil
-}
-
-func (a *deployAction) copyArchiveToRemote(ctx context.Context, c *cli.Command) error {
-	name, host, password := c.String("name"), c.String("host"), c.String("password")
-	config := &ssh.ClientConfig{
-		User:            "root",
-		Auth:            []ssh.AuthMethod{ssh.Password(password)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
-	}
-	sshClient, err := ssh.Dial("tcp", host+":22", config)
-	if err != nil {
 		return fmt.Errorf("failed to dial: %w", err)
 	}
-	defer sshClient.Close()
-	if err := a.executeOverSSH(ctx, sshClient, "mkdir -p /root/projects/"+name); err != nil {
-		return fmt.Errorf("failed to create project directory: %w", err)
-	}
-	a.executeOverSSH(ctx, sshClient, fmt.Sprintf("rm /root/projects/%s/archive.zip", name))
-	scpClient, err := scp.NewClientBySSH(sshClient)
-	if err != nil {
-		return fmt.Errorf("failed to create scp client: %w", err)
-	}
-	defer scpClient.Close()
-	archive, _ := os.Open("archive.zip")
-	defer archive.Close()
-	err = scpClient.CopyFromFile(context.Background(), *archive, fmt.Sprintf("/root/projects/%s/archive.zip", name), "0655")
-	if err != nil {
-		return fmt.Errorf("failed to copy archive to remote: %w", err)
-	}
-	if err := a.executeOverSSH(ctx, sshClient, fmt.Sprintf("unzip -o /root/projects/%s/archive.zip -d /root/projects/%s", name, name)); err != nil {
-		return fmt.Errorf("failed to unzip archive: %w", err)
-	}
-	a.executeOverSSH(ctx, sshClient, fmt.Sprintf("rm /root/projects/%s/archive.zip", name))
+	a.client = client
 	return nil
 }
 
-func (a *deployAction) dockerCompose(ctx context.Context, c *cli.Command) error {
-	name, version, host, password := c.String("name"), c.String("version"), c.String("host"), c.String("password")
-	config := &ssh.ClientConfig{
-		User:            "root",
-		Auth:            []ssh.AuthMethod{ssh.Password(password)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
+func (a *deployAction) assertDeployable(c *cli.Command) error {
+	// make sure the required flags are set
+	if c.String("name") == "" {
+		return errors.New("name is required")
 	}
-	sshClient, err := ssh.Dial("tcp", host+":22", config)
-	if err != nil {
-		return fmt.Errorf("failed to dial: %w", err)
+	if c.String("version") == "" {
+		return errors.New("version is required")
 	}
-	defer sshClient.Close()
-	if err := a.executeOverSSH(ctx, sshClient, fmt.Sprintf("cd /root/projects/%s && docker compose pull", name)); err != nil {
-		return fmt.Errorf("failed to pull images: %w", err)
+	if c.String("host") == "" {
+		return errors.New("host is required")
 	}
-	if err := a.executeOverSSH(ctx, sshClient, fmt.Sprintf("cd /root/projects/%s && VERSION=%s docker compose build", name, version)); err != nil {
-		return fmt.Errorf("failed to build containers: %w", err)
+	if c.String("password") == "" {
+		return errors.New("password is required")
 	}
-	if err := a.executeOverSSH(ctx, sshClient, fmt.Sprintf("cd /root/projects/%s && VERSION=%s docker compose up -d --remove-orphans", name, version)); err != nil {
-		return fmt.Errorf("failed to start containers: %w", err)
+	// make sure the version has not already been deployed
+	if err := a.runCheckExitCode(
+		fmt.Sprintf("test ! -d /root/projects/%s/%s",
+			c.String("name"), c.String("version")),
+		0,
+	); err != nil {
+		return errors.New("version already deployed")
 	}
+	// all good
 	return nil
 }
 
-func (a *deployAction) caddyfile(ctx context.Context, c *cli.Command) error {
-	name, host, password := c.String("name"), c.String("host"), c.String("password")
-	config := &ssh.ClientConfig{
-		User:            "root",
-		Auth:            []ssh.AuthMethod{ssh.Password(password)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
-	}
-	sshClient, err := ssh.Dial("tcp", host+":22", config)
-	if err != nil {
-		return fmt.Errorf("failed to dial: %w", err)
-	}
-	defer sshClient.Close()
-	if err := a.executeOverSSH(ctx, sshClient, fmt.Sprintf("mkdir -p /root/_caddy/sites-enabled")); err != nil {
-		return fmt.Errorf("failed to create sites-enabled directory: %w", err)
-	}
-	if err := a.executeOverSSH(ctx, sshClient, fmt.Sprintf("cp /root/projects/%s/Caddyfile /root/_caddy/sites-enabled/%s", name, name)); err != nil {
-		return fmt.Errorf("failed to copy Caddyfile: %w", err)
-	}
-	if err := a.executeOverSSH(ctx, sshClient, "cd /root/_caddy && docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile"); err != nil {
-		return fmt.Errorf("failed to reload Caddy: %w", err)
-	}
-	return nil
-}
-
-func (a *deployAction) executeOverSSH(ctx context.Context, client *ssh.Client, command string) error {
-	session, err := client.NewSession()
+func (a *deployAction) runCheckExitCode(cmd string, expectedCode int) error {
+	sess, err := a.client.NewSession()
 	if err != nil {
 		return fmt.Errorf("failed to create session: %w", err)
 	}
-	defer session.Close()
-	session.Stdout = os.Stdout
-	session.Stderr = os.Stderr
-	fmt.Printf("Running command: %s\n", command)
-	return session.Run(command)
+	defer sess.Close()
+	err = sess.Run(cmd)
+	if err == nil {
+		if expectedCode == 0 {
+			return nil
+		}
+		return fmt.Errorf("expected exit code %d, got 0", expectedCode)
+	}
+	var exitErr *ssh.ExitError
+	if errors.As(err, &exitErr) {
+		actualCode := exitErr.ExitStatus()
+		if actualCode == expectedCode {
+			return nil
+		}
+		return fmt.Errorf("expected exit code %d, got %d", expectedCode, actualCode)
+	}
+	return fmt.Errorf("failed to run command: %w", err)
+}
+
+func (a *deployAction) runCommand(cmd string) error {
+	sess, err := a.client.NewSession()
+	if err != nil {
+		return fmt.Errorf("failed to create session: %w", err)
+	}
+	defer sess.Close()
+	sess.Stdout = os.Stdout
+	sess.Stderr = os.Stderr
+	log.Debugf("running command: %q", cmd)
+	if err := sess.Run(cmd); err != nil {
+		return fmt.Errorf("failed to run command: %w", err)
+	}
+	return nil
+}
+
+func (a *deployAction) runSilentCommand(cmd string) error {
+	sess, err := a.client.NewSession()
+	if err != nil {
+		return fmt.Errorf("failed to create session: %w", err)
+	}
+	defer sess.Close()
+	sess.Stdout = os.Stdout
+	sess.Stderr = os.Stderr
+	log.Debugf("running command: %q", cmd)
+	if err := sess.Run(cmd); err != nil {
+		var exitErr *ssh.ExitError
+		if errors.As(err, &exitErr) {
+			return nil
+		}
+		return fmt.Errorf("failed to run command: %w", err)
+	}
+	return nil
 }

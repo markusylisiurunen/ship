@@ -36,6 +36,10 @@ func Execute(ctx context.Context) {
 						Usage:    "ssh password for root user",
 						Required: true,
 					},
+					&cli.StringSliceFlag{
+						Name:  "volume",
+						Usage: "ensures a folder exists on the remote server's '.data' folder (e.g., 'uploads')",
+					},
 				},
 			},
 			{

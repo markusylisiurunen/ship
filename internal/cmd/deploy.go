@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"github.com/bramvdbogaerde/go-scp"
@@ -46,6 +47,7 @@ func (a *deployAction) action(ctx context.Context, c *cli.Command) error {
 	stepFns := []StepFn{
 		a.stepArchive,
 		a.stepCopy,
+		a.stepVolumes,
 		a.stepSecrets,
 		a.stepLink,
 		a.stepDocker,
@@ -177,6 +179,29 @@ func (a *deployAction) stepCopy(ctx context.Context, c *cli.Command) (func(), er
 	return cleanupFn, doer.Err()
 }
 
+func (a *deployAction) stepVolumes(ctx context.Context, c *cli.Command) (func(), error) {
+	var cleanupFn func()
+	var doer util.Doer
+	doer.Do(func() error {
+		cmd := fmt.Sprintf("mkdir -p /root/projects/%s/.data",
+			c.String("name"))
+		return a.runCommand(cmd)
+	})
+	for _, volume := range c.StringSlice("volumes") {
+		doer.Do(func() error {
+			cmd := fmt.Sprintf("mkdir -p /root/projects/%s/.data/%s",
+				c.String("name"), volume)
+			return a.runCommand(cmd)
+		})
+	}
+	doer.Do(func() error {
+		cmd := fmt.Sprintf("ln -sfn /root/projects/%s/.data /root/projects/%s/%s/.data",
+			c.String("name"), c.String("name"), c.String("version"))
+		return a.runCommand(cmd)
+	})
+	return cleanupFn, doer.Err()
+}
+
 func (a *deployAction) stepSecrets(ctx context.Context, c *cli.Command) (func(), error) {
 	var cleanupFn func()
 	var doer util.Doer
@@ -289,6 +314,12 @@ func (a *deployAction) assertDeployable(c *cli.Command) error {
 	}
 	if c.String("password") == "" {
 		return errors.New("password is required")
+	}
+	// make sure volumes are valid
+	for _, volume := range c.StringSlice("volumes") {
+		if !regexp.MustCompile(`^[a-zA-Z0-9_-]+$`).MatchString(volume) {
+			return errors.New("volumes must be alphanumeric, with dashes and underscores allowed")
+		}
 	}
 	// make sure the version has not already been deployed
 	if err := a.runCheckExitCodeCommand(

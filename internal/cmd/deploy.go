@@ -46,6 +46,7 @@ func (a *deployAction) action(ctx context.Context, c *cli.Command) error {
 	stepFns := []StepFn{
 		a.stepArchive,
 		a.stepCopy,
+		a.stepSecrets,
 		a.stepLink,
 		a.stepDocker,
 		a.stepCaddy,
@@ -176,6 +177,23 @@ func (a *deployAction) stepCopy(ctx context.Context, c *cli.Command) (func(), er
 	return cleanupFn, doer.Err()
 }
 
+func (a *deployAction) stepSecrets(ctx context.Context, c *cli.Command) (func(), error) {
+	var cleanupFn func()
+	var doer util.Doer
+	doer.
+		Do(func() error {
+			cmd := fmt.Sprintf("mkdir -p /root/projects/%s/.secrets",
+				c.String("name"))
+			return a.runCommand(cmd)
+		}).
+		Do(func() error {
+			cmd := fmt.Sprintf("ln -sfn /root/projects/%s/.secrets /root/projects/%s/%s/.secrets",
+				c.String("name"), c.String("name"), c.String("version"))
+			return a.runCommand(cmd)
+		})
+	return cleanupFn, doer.Err()
+}
+
 func (a *deployAction) stepLink(ctx context.Context, c *cli.Command) (func(), error) {
 	var cleanupFn func()
 	var doer util.Doer
@@ -273,7 +291,7 @@ func (a *deployAction) assertDeployable(c *cli.Command) error {
 		return errors.New("password is required")
 	}
 	// make sure the version has not already been deployed
-	if err := a.runCheckExitCode(
+	if err := a.runCheckExitCodeCommand(
 		fmt.Sprintf("test ! -d /root/projects/%s/%s",
 			c.String("name"), c.String("version")),
 		0,
@@ -284,7 +302,7 @@ func (a *deployAction) assertDeployable(c *cli.Command) error {
 	return nil
 }
 
-func (a *deployAction) runCheckExitCode(cmd string, expectedCode int) error {
+func (a *deployAction) runCheckExitCodeCommand(cmd string, expectedCode int) error {
 	sess, err := a.client.NewSession()
 	if err != nil {
 		return fmt.Errorf("failed to create session: %w", err)

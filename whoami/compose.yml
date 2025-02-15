@@ -15,6 +15,12 @@ services:
           memory: 50M
     environment:
       - PORT=${PORT:-8080}
+    secrets:
+      - hello
+
+secrets:
+  hello:
+    file: .secrets/hello
 
 networks:
   caddy:

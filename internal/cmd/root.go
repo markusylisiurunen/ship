@@ -38,6 +38,58 @@ func Execute(ctx context.Context) {
 					},
 				},
 			},
+			{
+				Name:  "secrets",
+				Usage: "manage application secrets",
+				Commands: []*cli.Command{
+					{
+						Name:      "set",
+						Usage:     "set a secret value",
+						ArgsUsage: "<key> <value>",
+						Action:    newSecretsSetAction().action,
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "name",
+								Usage:    "application name (e.g., 'myapp')",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "host",
+								Usage:    "remote server address (e.g., 'example.com' or '192.168.1.100')",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "password",
+								Usage:    "ssh password for root user",
+								Required: true,
+							},
+						},
+					},
+					{
+						Name:      "del",
+						Usage:     "delete a secret value",
+						ArgsUsage: "<key>",
+						Action:    newSecretsDelAction().action,
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "name",
+								Usage:    "application name (e.g., 'myapp')",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "host",
+								Usage:    "remote server address (e.g., 'example.com' or '192.168.1.100')",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "password",
+								Usage:    "ssh password for root user",
+								Required: true,
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 	if err := cmd.Run(ctx, os.Args); err != nil {

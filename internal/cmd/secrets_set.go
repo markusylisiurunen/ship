@@ -24,7 +24,7 @@ func newSecretsSetAction() *secretsSetAction {
 }
 
 func (a *secretsSetAction) action(ctx context.Context, c *cli.Command) error {
-	if err := a.connectClient(c); err != nil {
+	if err := a.dial(c); err != nil {
 		return err
 	}
 	defer a.client.Close()
@@ -61,13 +61,13 @@ func (a *secretsSetAction) stepSetSecret(ctx context.Context, c *cli.Command) (f
 	var doer util.Doer
 	doer.
 		Do(func() error {
-			cmd := fmt.Sprintf("mkdir -p /root/projects/%s/.secrets",
+			cmd := fmt.Sprintf("mkdir -p $HOME/projects/%s/.secrets",
 				c.String("name"))
 			return a.runCommand(cmd)
 		}).
 		Do(func() error {
 			key, value := c.Args().Get(0), c.Args().Get(1)
-			cmd := fmt.Sprintf("echo -n %q > /root/projects/%s/.secrets/%s",
+			cmd := fmt.Sprintf("echo -n %q > $HOME/projects/%s/.secrets/%s",
 				value, c.String("name"), key)
 			return a.runCommandDiscardOutput(cmd)
 		})
@@ -76,21 +76,29 @@ func (a *secretsSetAction) stepSetSecret(ctx context.Context, c *cli.Command) (f
 
 // helpers -----------------------------------------------------------------------------------------
 
-func (a *secretsSetAction) connectClient(c *cli.Command) error {
+func (a *secretsSetAction) dial(c *cli.Command) error {
 	if a.client != nil {
 		return nil
 	}
 	var (
-		name     = c.String("name")
-		host     = c.String("host")
-		password = c.String("password")
+		host    = c.String("host")
+		user    = c.String("user")
+		keyFile = c.String("key-file")
 	)
-	if name == "" || host == "" || password == "" {
-		return errors.New("name, host and password are required")
+	if host == "" || user == "" || keyFile == "" {
+		return errors.New("--host, --user and --key-file are required")
+	}
+	key, err := os.ReadFile(keyFile)
+	if err != nil {
+		return err
+	}
+	signer, err := ssh.ParsePrivateKey(key)
+	if err != nil {
+		return err
 	}
 	client, err := ssh.Dial("tcp", host+":22", &ssh.ClientConfig{
-		User:            "root",
-		Auth:            []ssh.AuthMethod{ssh.Password(password)},
+		User:            user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         10 * time.Second,
 	})
@@ -109,8 +117,11 @@ func (a *secretsSetAction) assertOperational(c *cli.Command) error {
 	if c.String("host") == "" {
 		return errors.New("host is required")
 	}
-	if c.String("password") == "" {
-		return errors.New("password is required")
+	if c.String("user") == "" {
+		return errors.New("user is required")
+	}
+	if c.String("key-file") == "" {
+		return errors.New("key-file is required")
 	}
 	// make sure there are exactly two args
 	if c.Args().Len() != 2 {

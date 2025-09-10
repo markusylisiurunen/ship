@@ -23,7 +23,7 @@ func newSecretsDelAction() *secretsDelAction {
 }
 
 func (a *secretsDelAction) action(ctx context.Context, c *cli.Command) error {
-	if err := a.connectClient(c); err != nil {
+	if err := a.dial(c); err != nil {
 		return err
 	}
 	defer a.client.Close()
@@ -61,7 +61,7 @@ func (a *secretsDelAction) stepDelSecret(ctx context.Context, c *cli.Command) (f
 	doer.
 		Do(func() error {
 			key := c.Args().Get(0)
-			cmd := fmt.Sprintf("test -f /root/projects/%s/.secrets/%s && rm /root/projects/%s/.secrets/%s || true",
+			cmd := fmt.Sprintf("test -f $HOME/projects/%s/.secrets/%s && rm $HOME/projects/%s/.secrets/%s || true",
 				c.String("name"), key, c.String("name"), key)
 			return a.runCommand(cmd)
 		})
@@ -70,21 +70,29 @@ func (a *secretsDelAction) stepDelSecret(ctx context.Context, c *cli.Command) (f
 
 // helpers -----------------------------------------------------------------------------------------
 
-func (a *secretsDelAction) connectClient(c *cli.Command) error {
+func (a *secretsDelAction) dial(c *cli.Command) error {
 	if a.client != nil {
 		return nil
 	}
 	var (
-		name     = c.String("name")
-		host     = c.String("host")
-		password = c.String("password")
+		host    = c.String("host")
+		user    = c.String("user")
+		keyFile = c.String("key-file")
 	)
-	if name == "" || host == "" || password == "" {
-		return errors.New("name, host and password are required")
+	if host == "" || user == "" || keyFile == "" {
+		return errors.New("--host, --user and --key-file are required")
+	}
+	key, err := os.ReadFile(keyFile)
+	if err != nil {
+		return err
+	}
+	signer, err := ssh.ParsePrivateKey(key)
+	if err != nil {
+		return err
 	}
 	client, err := ssh.Dial("tcp", host+":22", &ssh.ClientConfig{
-		User:            "root",
-		Auth:            []ssh.AuthMethod{ssh.Password(password)},
+		User:            user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         10 * time.Second,
 	})
@@ -103,8 +111,11 @@ func (a *secretsDelAction) assertOperational(c *cli.Command) error {
 	if c.String("host") == "" {
 		return errors.New("host is required")
 	}
-	if c.String("password") == "" {
-		return errors.New("password is required")
+	if c.String("user") == "" {
+		return errors.New("user is required")
+	}
+	if c.String("key-file") == "" {
+		return errors.New("key-file is required")
 	}
 	// make sure there are exactly one arg
 	if c.Args().Len() != 1 {

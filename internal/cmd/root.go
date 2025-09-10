@@ -32,8 +32,13 @@ func Execute(ctx context.Context) {
 						Required: true,
 					},
 					&cli.StringFlag{
-						Name:     "password",
-						Usage:    "ssh password for root user",
+						Name:     "user",
+						Usage:    "ssh user for authentication",
+						Required: true,
+					},
+					&cli.StringFlag{
+						Name:     "key-file",
+						Usage:    "ssh private key file for authentication",
 						Required: true,
 					},
 					&cli.StringSliceFlag{

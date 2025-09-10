@@ -53,8 +53,7 @@ func (a *secretsDelAction) action(ctx context.Context, c *cli.Command) error {
 	return nil
 }
 
-// steps
-// ---
+// steps -------------------------------------------------------------------------------------------
 
 func (a *secretsDelAction) stepDelSecret(ctx context.Context, c *cli.Command) (func(), error) {
 	var cleanupFn func()
@@ -69,8 +68,7 @@ func (a *secretsDelAction) stepDelSecret(ctx context.Context, c *cli.Command) (f
 	return cleanupFn, doer.Err()
 }
 
-// helpers
-// ---
+// helpers -----------------------------------------------------------------------------------------
 
 func (a *secretsDelAction) connectClient(c *cli.Command) error {
 	if a.client != nil {

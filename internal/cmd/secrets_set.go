@@ -54,8 +54,7 @@ func (a *secretsSetAction) action(ctx context.Context, c *cli.Command) error {
 	return nil
 }
 
-// steps
-// ---
+// steps -------------------------------------------------------------------------------------------
 
 func (a *secretsSetAction) stepSetSecret(ctx context.Context, c *cli.Command) (func(), error) {
 	var cleanupFn func()
@@ -75,8 +74,7 @@ func (a *secretsSetAction) stepSetSecret(ctx context.Context, c *cli.Command) (f
 	return cleanupFn, doer.Err()
 }
 
-// helpers
-// ---
+// helpers -----------------------------------------------------------------------------------------
 
 func (a *secretsSetAction) connectClient(c *cli.Command) error {
 	if a.client != nil {

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/bramvdbogaerde/go-scp"
@@ -19,7 +21,8 @@ import (
 )
 
 type deployAction struct {
-	client *ssh.Client
+	client  *ssh.Client
+	homeDir string
 }
 
 func newDeployAction() *deployAction {
@@ -27,7 +30,7 @@ func newDeployAction() *deployAction {
 }
 
 func (a *deployAction) action(ctx context.Context, c *cli.Command) error {
-	if err := a.connectClient(c); err != nil {
+	if err := a.dial(c); err != nil {
 		return err
 	}
 	defer a.client.Close()
@@ -45,6 +48,7 @@ func (a *deployAction) action(ctx context.Context, c *cli.Command) error {
 		}
 	}()
 	stepFns := []StepFn{
+		a.stepHomeDir,
 		a.stepArchive,
 		a.stepCopy,
 		a.stepVolumes,
@@ -63,27 +67,32 @@ func (a *deployAction) action(ctx context.Context, c *cli.Command) error {
 	return nil
 }
 
-// steps
-// ---
+// steps -------------------------------------------------------------------------------------------
+
+func (a *deployAction) stepHomeDir(ctx context.Context, c *cli.Command) (func(), error) {
+	var cleanupFn func()
+	out, err := a.runCaptureCommand("echo $HOME")
+	if err != nil {
+		return cleanupFn, fmt.Errorf("failed to get home directory: %w", err)
+	}
+	a.homeDir = strings.TrimSpace(out)
+	return cleanupFn, nil
+}
 
 func (a *deployAction) stepArchive(ctx context.Context, c *cli.Command) (func(), error) {
 	var cleanupFn func()
-	// create the archive.zip file
 	archive, err := os.Create("archive.zip")
 	if err != nil {
 		return cleanupFn, fmt.Errorf("failed to create archive: %w", err)
 	}
 	defer archive.Close()
-	// cleanup the archive file
 	cleanupFn = func() {
 		if err := os.Remove("archive.zip"); err != nil {
 			log.Errorf("failed to remove archive: %v", err)
 		}
 	}
-	// create the zip writer
 	zipWriter := zip.NewWriter(archive)
 	defer zipWriter.Close()
-	// walk the current working directory and add files to the archive
 	cwd, err := os.Getwd()
 	if err != nil {
 		return cleanupFn, fmt.Errorf("failed to get working directory: %w", err)
@@ -96,15 +105,13 @@ func (a *deployAction) stepArchive(ctx context.Context, c *cli.Command) (func(),
 		if err != nil {
 			return fmt.Errorf("failed to get relative path: %w", err)
 		}
-		// ignore the archive.zip file
 		if relPath == "archive.zip" {
 			return nil
 		}
-		// ignore the .git directory
 		if info.IsDir() && info.Name() == ".git" {
 			return filepath.SkipDir
 		}
-		// create the zip entry
+		// TODO: should allow ignoring other files too
 		header, err := zip.FileInfoHeader(info)
 		if err != nil {
 			return fmt.Errorf("failed to create zip file header: %w", err)
@@ -121,7 +128,6 @@ func (a *deployAction) stepArchive(ctx context.Context, c *cli.Command) (func(),
 		if info.IsDir() {
 			return nil
 		}
-		// write the file to the zip entry
 		file, err := os.Open(path)
 		if err != nil {
 			return fmt.Errorf("failed to open file %q: %w", path, err)
@@ -142,7 +148,7 @@ func (a *deployAction) stepCopy(ctx context.Context, c *cli.Command) (func(), er
 	var doer util.Doer
 	doer.
 		Do(func() error {
-			cmd := fmt.Sprintf("mkdir -p /root/projects/%s/%s",
+			cmd := fmt.Sprintf("mkdir -p $HOME/projects/%s/%s",
 				c.String("name"), c.String("version"))
 			return a.runCommand(cmd)
 		}).
@@ -158,8 +164,8 @@ func (a *deployAction) stepCopy(ctx context.Context, c *cli.Command) (func(), er
 			}
 			defer archive.Close()
 			if err := client.CopyFromFile(ctx, *archive,
-				fmt.Sprintf("/root/projects/%s/%s/archive.zip",
-					c.String("name"), c.String("version")),
+				fmt.Sprintf("%s/projects/%s/%s/archive.zip",
+					a.homeDir, c.String("name"), c.String("version")),
 				"0655",
 			); err != nil {
 				return fmt.Errorf("failed to copy archive to remote: %w", err)
@@ -167,12 +173,12 @@ func (a *deployAction) stepCopy(ctx context.Context, c *cli.Command) (func(), er
 			return nil
 		}).
 		Do(func() error {
-			cmd := fmt.Sprintf("unzip -o /root/projects/%s/%s/archive.zip -d /root/projects/%s/%s",
+			cmd := fmt.Sprintf("unzip -o $HOME/projects/%s/%s/archive.zip -d $HOME/projects/%s/%s",
 				c.String("name"), c.String("version"), c.String("name"), c.String("version"))
 			return a.runCommand(cmd)
 		}).
 		Do(func() error {
-			cmd := fmt.Sprintf("rm /root/projects/%s/%s/archive.zip",
+			cmd := fmt.Sprintf("rm $HOME/projects/%s/%s/archive.zip",
 				c.String("name"), c.String("version"))
 			return a.runSilentCommand(cmd)
 		})
@@ -183,19 +189,19 @@ func (a *deployAction) stepVolumes(ctx context.Context, c *cli.Command) (func(),
 	var cleanupFn func()
 	var doer util.Doer
 	doer.Do(func() error {
-		cmd := fmt.Sprintf("mkdir -p /root/projects/%s/.data",
+		cmd := fmt.Sprintf("mkdir -p $HOME/projects/%s/.data",
 			c.String("name"))
 		return a.runCommand(cmd)
 	})
 	for _, volume := range c.StringSlice("volumes") {
 		doer.Do(func() error {
-			cmd := fmt.Sprintf("mkdir -p /root/projects/%s/.data/%s",
+			cmd := fmt.Sprintf("mkdir -p $HOME/projects/%s/.data/%s",
 				c.String("name"), volume)
 			return a.runCommand(cmd)
 		})
 	}
 	doer.Do(func() error {
-		cmd := fmt.Sprintf("ln -sfn /root/projects/%s/.data /root/projects/%s/%s/.data",
+		cmd := fmt.Sprintf("ln -sfn $HOME/projects/%s/.data $HOME/projects/%s/%s/.data",
 			c.String("name"), c.String("name"), c.String("version"))
 		return a.runCommand(cmd)
 	})
@@ -207,12 +213,12 @@ func (a *deployAction) stepSecrets(ctx context.Context, c *cli.Command) (func(),
 	var doer util.Doer
 	doer.
 		Do(func() error {
-			cmd := fmt.Sprintf("mkdir -p /root/projects/%s/.secrets",
+			cmd := fmt.Sprintf("mkdir -p $HOME/projects/%s/.secrets",
 				c.String("name"))
 			return a.runCommand(cmd)
 		}).
 		Do(func() error {
-			cmd := fmt.Sprintf("ln -sfn /root/projects/%s/.secrets /root/projects/%s/%s/.secrets",
+			cmd := fmt.Sprintf("ln -sfn $HOME/projects/%s/.secrets $HOME/projects/%s/%s/.secrets",
 				c.String("name"), c.String("name"), c.String("version"))
 			return a.runCommand(cmd)
 		})
@@ -224,7 +230,7 @@ func (a *deployAction) stepLink(ctx context.Context, c *cli.Command) (func(), er
 	var doer util.Doer
 	doer.
 		Do(func() error {
-			cmd := fmt.Sprintf("ln -sfn /root/projects/%s/%s /root/projects/%s/.current",
+			cmd := fmt.Sprintf("ln -sfn $HOME/projects/%s/%s $HOME/projects/%s/.current",
 				c.String("name"), c.String("version"), c.String("name"))
 			return a.runCommand(cmd)
 		})
@@ -236,17 +242,17 @@ func (a *deployAction) stepDocker(ctx context.Context, c *cli.Command) (func(), 
 	var doer util.Doer
 	doer.
 		Do(func() error {
-			cmd := fmt.Sprintf("cd /root/projects/%s/.current && docker compose pull",
+			cmd := fmt.Sprintf("cd $HOME/projects/%s/.current && docker compose pull",
 				c.String("name"))
 			return a.runCommand(cmd)
 		}).
 		Do(func() error {
-			cmd := fmt.Sprintf("cd /root/projects/%s/.current && VERSION=%s docker compose build",
+			cmd := fmt.Sprintf("cd $HOME/projects/%s/.current && VERSION=%s docker compose build",
 				c.String("name"), c.String("version"))
 			return a.runCommand(cmd)
 		}).
 		Do(func() error {
-			cmd := fmt.Sprintf("cd /root/projects/%s/.current && VERSION=%s docker compose up -d --remove-orphans",
+			cmd := fmt.Sprintf("cd $HOME/projects/%s/.current && VERSION=%s docker compose up -d --remove-orphans",
 				c.String("name"), c.String("version"))
 			return a.runCommand(cmd)
 		})
@@ -258,39 +264,46 @@ func (a *deployAction) stepCaddy(ctx context.Context, c *cli.Command) (func(), e
 	var doer util.Doer
 	doer.
 		Do(func() error {
-			cmd := "mkdir -p /root/_caddy/sites-enabled"
+			cmd := "mkdir -p $HOME/_caddy/sites-enabled"
 			return a.runCommand(cmd)
 		}).
 		Do(func() error {
-			cmd := fmt.Sprintf("cp /root/projects/%s/.current/Caddyfile /root/_caddy/sites-enabled/%s",
+			cmd := fmt.Sprintf("cp $HOME/projects/%s/.current/Caddyfile $HOME/_caddy/sites-enabled/%s",
 				c.String("name"), c.String("name"))
 			return a.runCommand(cmd)
 		}).
 		Do(func() error {
-			cmd := "cd /root/_caddy && docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile"
+			cmd := "cd $HOME/_caddy && docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile"
 			return a.runCommand(cmd)
 		})
 	return cleanupFn, doer.Err()
 }
 
-// helpers
-// ---
+// helpers -----------------------------------------------------------------------------------------
 
-func (a *deployAction) connectClient(c *cli.Command) error {
+func (a *deployAction) dial(c *cli.Command) error {
 	if a.client != nil {
 		return nil
 	}
 	var (
-		name     = c.String("name")
-		host     = c.String("host")
-		password = c.String("password")
+		host    = c.String("host")
+		user    = c.String("user")
+		keyFile = c.String("key-file")
 	)
-	if name == "" || host == "" || password == "" {
-		return errors.New("name, host and password are required")
+	if host == "" || user == "" || keyFile == "" {
+		return errors.New("--host, --user and --key-file are required")
+	}
+	key, err := os.ReadFile(keyFile)
+	if err != nil {
+		return err
+	}
+	signer, err := ssh.ParsePrivateKey(key)
+	if err != nil {
+		return err
 	}
 	client, err := ssh.Dial("tcp", host+":22", &ssh.ClientConfig{
-		User:            "root",
-		Auth:            []ssh.AuthMethod{ssh.Password(password)},
+		User:            user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         10 * time.Second,
 	})
@@ -302,34 +315,27 @@ func (a *deployAction) connectClient(c *cli.Command) error {
 }
 
 func (a *deployAction) assertDeployable(c *cli.Command) error {
-	// make sure the required flags are set
-	if c.String("name") == "" {
-		return errors.New("name is required")
+	requiredFlags := []string{"name", "version", "host", "user", "key-file"}
+	for _, flag := range requiredFlags {
+		if c.String(flag) == "" {
+			return fmt.Errorf("%s is required", flag)
+		}
 	}
-	if c.String("version") == "" {
-		return errors.New("version is required")
+	if !regexp.MustCompile(`^[a-zA-Z0-9_-]+$`).MatchString(c.String("version")) {
+		return errors.New("version must be alphanumeric, with dashes and underscores allowed")
 	}
-	if c.String("host") == "" {
-		return errors.New("host is required")
-	}
-	if c.String("password") == "" {
-		return errors.New("password is required")
-	}
-	// make sure volumes are valid
 	for _, volume := range c.StringSlice("volumes") {
 		if !regexp.MustCompile(`^[a-zA-Z0-9_-]+$`).MatchString(volume) {
 			return errors.New("volumes must be alphanumeric, with dashes and underscores allowed")
 		}
 	}
-	// make sure the version has not already been deployed
 	if err := a.runCheckExitCodeCommand(
-		fmt.Sprintf("test ! -d /root/projects/%s/%s",
+		fmt.Sprintf("test ! -d $HOME/projects/%s/%s",
 			c.String("name"), c.String("version")),
 		0,
 	); err != nil {
 		return errors.New("version already deployed")
 	}
-	// all good
 	return nil
 }
 
@@ -357,6 +363,22 @@ func (a *deployAction) runCheckExitCodeCommand(cmd string, expectedCode int) err
 	return fmt.Errorf("failed to run command: %w", err)
 }
 
+func (a *deployAction) runCaptureCommand(cmd string) (string, error) {
+	var output bytes.Buffer
+	sess, err := a.client.NewSession()
+	if err != nil {
+		return "", fmt.Errorf("failed to create session: %w", err)
+	}
+	defer sess.Close()
+	sess.Stdout = &output
+	sess.Stderr = os.Stderr
+	log.Debugf("running command: %q", cmd)
+	if err := sess.Run(cmd); err != nil {
+		return "", fmt.Errorf("failed to run command: %w", err)
+	}
+	return output.String(), nil
+}
+
 func (a *deployAction) runCommand(cmd string) error {
 	sess, err := a.client.NewSession()
 	if err != nil {
@@ -373,15 +395,7 @@ func (a *deployAction) runCommand(cmd string) error {
 }
 
 func (a *deployAction) runSilentCommand(cmd string) error {
-	sess, err := a.client.NewSession()
-	if err != nil {
-		return fmt.Errorf("failed to create session: %w", err)
-	}
-	defer sess.Close()
-	sess.Stdout = os.Stdout
-	sess.Stderr = os.Stderr
-	log.Debugf("running command: %q", cmd)
-	if err := sess.Run(cmd); err != nil {
+	if err := a.runCommand(cmd); err != nil {
 		var exitErr *ssh.ExitError
 		if errors.As(err, &exitErr) {
 			return nil

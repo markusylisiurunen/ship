@@ -42,10 +42,16 @@ func (a *UpAction) Action(ctx context.Context, cmd *cli.Command) error {
 			"fail2ban",
 			"git",
 			"jq",
+			"ripgrep",
+			"snapd",
 			"tree",
 			"ufw",
 			"unzip",
 		},
+	})
+	// Install the `btop` and `dust` from `snap`
+	steps = append(steps, &reconcile.RawScript{
+		Script: "snap install btop && snap install dust",
 	})
 	// Setup `ufw` firewall with some basic rules (allowing only SSH, HTTP, HTTPS)
 	steps = append(steps, &reconcile.Ufw{

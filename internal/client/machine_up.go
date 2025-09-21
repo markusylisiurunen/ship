@@ -30,39 +30,39 @@ func (a *MachineUpAction) init(ctx context.Context, cmd *cli.Command) (cleanup f
 
 	token := cmd.String("token")
 	if token == "" {
-		initErr = fmt.Errorf("Hetzner API token is required")
+		initErr = fmt.Errorf("hetzner API token is required")
 		return
 	}
 	a.hetzner = hcloud.NewClient(hcloud.WithToken(token))
 
 	serverName := cmd.String("name")
 	if serverName == "" {
-		initErr = fmt.Errorf("Server name is required")
+		initErr = fmt.Errorf("server name is required")
 		return
 	}
 	server, _, err := a.hetzner.Server.GetByName(ctx, serverName)
 	if err != nil {
-		initErr = err
+		initErr = fmt.Errorf("fetch server %q: %w", serverName, err)
 		return
 	}
 	if server == nil {
-		initErr = fmt.Errorf("Server %q not found", serverName)
+		initErr = fmt.Errorf("server %q not found", serverName)
 		return
 	}
 
 	sshPrivateKey := cmd.String("ssh-private-key")
 	if sshPrivateKey == "" {
-		initErr = fmt.Errorf("SSH private key is required")
+		initErr = fmt.Errorf("ssh private key is required")
 		return
 	}
 	privateKey, err := os.ReadFile(sshPrivateKey)
 	if err != nil {
-		initErr = err
+		initErr = fmt.Errorf("read ssh private key %q: %w", sshPrivateKey, err)
 		return
 	}
 	signer, err := ssh.ParsePrivateKey(privateKey)
 	if err != nil {
-		initErr = err
+		initErr = fmt.Errorf("parse ssh private key: %w", err)
 		return
 	}
 	if client, err := ssh.Dial(
@@ -75,7 +75,7 @@ func (a *MachineUpAction) init(ctx context.Context, cmd *cli.Command) (cleanup f
 			User:            "deploy",
 		},
 	); err != nil {
-		initErr = err
+		initErr = fmt.Errorf("connect to server %q over ssh: %w", serverName, err)
 		return
 	} else {
 		a.ssh = client
@@ -100,21 +100,20 @@ func (a *MachineUpAction) Action(ctx context.Context, cmd *cli.Command) error {
 		copyErr = copyVersionedAgentBinaryToServer(ctx, a.ssh, true, a.version)
 	}
 	if copyErr != nil {
-		return copyErr
+		return fmt.Errorf("ensure agent binary on server: %w", copyErr)
 	}
 
 	// Execute the appropriate `agent` command on the machine
 	sess, err := a.ssh.NewSession()
 	if err != nil {
-		return err
+		return fmt.Errorf("create SSH session for up: %w", err)
 	}
 	defer sess.Close()
 	sess.Stdout = os.Stdout
 	sess.Stderr = os.Stderr
-	if err := sess.Run(
-		fmt.Sprintf("sudo /root/.ship/%s/agent up", a.version),
-	); err != nil {
-		return err
+	upCmd := fmt.Sprintf("sudo /root/.ship/%s/agent up", a.version)
+	if err := sess.Run(upCmd); err != nil {
+		return fmt.Errorf("run agent up command %q: %w", upCmd, err)
 	}
 
 	return nil

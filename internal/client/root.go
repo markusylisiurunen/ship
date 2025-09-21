@@ -81,7 +81,7 @@ func Execute(ctx context.Context, version string) {
 		},
 	}
 	if err := cmd.Run(ctx, os.Args); err != nil {
-		fmt.Printf("%v\n", err)
+		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -97,7 +97,7 @@ func copyDevAgentBinaryToServer(
 	// Create a temporary directory to build the binary in
 	tempDir, err := os.MkdirTemp("", "ship")
 	if err != nil {
-		return err
+		return fmt.Errorf("create temp dir for agent build: %w", err)
 	}
 	defer os.RemoveAll(tempDir)
 
@@ -117,13 +117,13 @@ func copyDevAgentBinaryToServer(
 		"GOOS=linux",
 	)
 	if err := cmd.Run(); err != nil {
-		return err
+		return fmt.Errorf("build agent binary: %w", err)
 	}
 
 	// Prepare the server
 	sess, err := ssh.NewSession()
 	if err != nil {
-		return err
+		return fmt.Errorf("open SSH session: %w", err)
 	}
 	defer sess.Close()
 	sess.Stdout = os.Stdout
@@ -134,39 +134,40 @@ func copyDevAgentBinaryToServer(
 			fmt.Sprintf("sudo mkdir -p /root/.ship/%s", version),
 		}
 		if err := sess.Run(strings.Join(cmds, " && ")); err != nil {
-			return err
+			return fmt.Errorf("prepare remote directories for root install: %w", err)
 		}
 	} else {
 		cmds := []string{
 			fmt.Sprintf("mkdir -p /home/deploy/.ship/%s", version),
 		}
 		if err := sess.Run(strings.Join(cmds, " && ")); err != nil {
-			return err
+			return fmt.Errorf("prepare remote directories for deploy install: %w", err)
 		}
 	}
 
 	// Copy the binary to the server using SCP
-	bin, err := os.Open(fmt.Sprintf("%s/agent", tempDir))
+	binaryPath := fmt.Sprintf("%s/agent", tempDir)
+	bin, err := os.Open(binaryPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("open built agent binary %q: %w", binaryPath, err)
 	}
 	defer bin.Close()
 	client, err := scp.NewClientBySSH(ssh)
 	if err != nil {
-		return err
+		return fmt.Errorf("create SCP client: %w", err)
 	}
 	defer client.Close()
 	fmt.Printf("Copying agent binary to the server...\n")
 	remotePath := fmt.Sprintf("/home/deploy/.ship/%s/agent", version)
 	if err := client.CopyFromFile(ctx, *bin, remotePath, "0744"); err != nil {
-		return err
+		return fmt.Errorf("copy agent binary to %q: %w", remotePath, err)
 	}
 
 	// Move the binary to root if needed
 	if root {
 		sess, err := ssh.NewSession()
 		if err != nil {
-			return err
+			return fmt.Errorf("open SSH session for root promotion: %w", err)
 		}
 		defer sess.Close()
 		sess.Stdout = os.Stdout
@@ -177,7 +178,7 @@ func copyDevAgentBinaryToServer(
 			fmt.Sprintf("sudo chown root:root /root/.ship/%s/agent", version),
 		}
 		if err := sess.Run(strings.Join(cmds, " && ")); err != nil {
-			return err
+			return fmt.Errorf("promote agent binary to root: %w", err)
 		}
 	}
 
@@ -200,7 +201,7 @@ func copyVersionedAgentBinaryToServer(
 	// Prepare the server and download the `agent` binary
 	sess, err := ssh.NewSession()
 	if err != nil {
-		return err
+		return fmt.Errorf("open SSH session: %w", err)
 	}
 	defer sess.Close()
 	sess.Stdout = os.Stdout
@@ -228,7 +229,7 @@ func copyVersionedAgentBinaryToServer(
 		)
 	}
 	if err := sess.Run(strings.Join(cmds, " && ")); err != nil {
-		return err
+		return fmt.Errorf("install agent binary from %s: %w", agentBinaryDownloadURL, err)
 	}
 
 	fmt.Printf("Agent binary downloaded and installed successfully\n")

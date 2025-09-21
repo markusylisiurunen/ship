@@ -32,7 +32,7 @@ func Execute(ctx context.Context, version string) {
 		},
 	}
 	if err := cmd.Run(ctx, os.Args); err != nil {
-		fmt.Printf("%v\n", err)
+		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
 }

@@ -35,39 +35,39 @@ func (a *DeployAction) init(ctx context.Context, cmd *cli.Command) (cleanup func
 
 	token := cmd.String("token")
 	if token == "" {
-		initErr = fmt.Errorf("Hetzner API token is required")
+		initErr = fmt.Errorf("hetzner API token is required")
 		return
 	}
 	a.hetzner = hcloud.NewClient(hcloud.WithToken(token))
 
 	serverName := cmd.String("server-name")
 	if serverName == "" {
-		initErr = fmt.Errorf("Server name is required")
+		initErr = fmt.Errorf("server name is required")
 		return
 	}
 	server, _, err := a.hetzner.Server.GetByName(ctx, serverName)
 	if err != nil {
-		initErr = err
+		initErr = fmt.Errorf("fetch server %q: %w", serverName, err)
 		return
 	}
 	if server == nil {
-		initErr = fmt.Errorf("Server %q not found", serverName)
+		initErr = fmt.Errorf("server %q not found", serverName)
 		return
 	}
 
 	sshPrivateKey := cmd.String("ssh-private-key")
 	if sshPrivateKey == "" {
-		initErr = fmt.Errorf("SSH private key is required")
+		initErr = fmt.Errorf("ssh private key is required")
 		return
 	}
 	privateKey, err := os.ReadFile(sshPrivateKey)
 	if err != nil {
-		initErr = err
+		initErr = fmt.Errorf("read ssh private key %q: %w", sshPrivateKey, err)
 		return
 	}
 	signer, err := ssh.ParsePrivateKey(privateKey)
 	if err != nil {
-		initErr = err
+		initErr = fmt.Errorf("parse ssh private key: %w", err)
 		return
 	}
 	if client, err := ssh.Dial(
@@ -80,7 +80,7 @@ func (a *DeployAction) init(ctx context.Context, cmd *cli.Command) (cleanup func
 			User:            "deploy",
 		},
 	); err != nil {
-		initErr = err
+		initErr = fmt.Errorf("connect to server %q over ssh: %w", serverName, err)
 		return
 	} else {
 		a.ssh = client
@@ -105,13 +105,13 @@ func (a *DeployAction) Action(ctx context.Context, cmd *cli.Command) error {
 		copyErr = copyVersionedAgentBinaryToServer(ctx, a.ssh, false, a.version)
 	}
 	if copyErr != nil {
-		return copyErr
+		return fmt.Errorf("ensure agent binary on server: %w", copyErr)
 	}
 
 	// Create the archive of the current directory
 	archivePath, cleanupArchive, err := a.createArchive()
 	if err != nil {
-		return err
+		return fmt.Errorf("create app archive: %w", err)
 	}
 	defer cleanupArchive()
 
@@ -121,23 +121,23 @@ func (a *DeployAction) Action(ctx context.Context, cmd *cli.Command) error {
 		appVersion = cmd.String("app-version")
 	)
 	if appName == "" || appVersion == "" {
-		return fmt.Errorf("App name and version are required")
+		return fmt.Errorf("app name and version are required")
 	}
 	alphaNumericRegexp := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 	if !alphaNumericRegexp.MatchString(appName) {
-		return fmt.Errorf("App name %q must be alphanumeric", appName)
+		return fmt.Errorf("app name %q can only contain letters, numbers, dashes, and underscores", appName)
 	}
 	if !alphaNumericRegexp.MatchString(appVersion) {
-		return fmt.Errorf("App version %q must be alphanumeric", appVersion)
+		return fmt.Errorf("app version %q can only contain letters, numbers, dashes, and underscores", appVersion)
 	}
 	if err := a.uploadArchive(ctx, archivePath, appName, appVersion); err != nil {
-		return err
+		return fmt.Errorf("upload archive: %w", err)
 	}
 
 	// Execute the appropriate `agent` command on the machine
 	sess, err := a.ssh.NewSession()
 	if err != nil {
-		return err
+		return fmt.Errorf("create SSH session for deploy: %w", err)
 	}
 	defer sess.Close()
 	sess.Stdout = os.Stdout
@@ -147,14 +147,14 @@ func (a *DeployAction) Action(ctx context.Context, cmd *cli.Command) error {
 	if volumeNames := cmd.StringSlice("volume"); len(volumeNames) > 0 {
 		for _, volumeName := range volumeNames {
 			if !alphaNumericRegexp.MatchString(volumeName) {
-				return fmt.Errorf("Volume name %q must be alphanumeric", volumeName)
+				return fmt.Errorf("volume name %q can only contain letters, numbers, dashes, and underscores", volumeName)
 			}
 			deployCmd += fmt.Sprintf(" --volume-name %s", volumeName)
 		}
 	}
 	fmt.Printf("Running deploy command: %s\n", deployCmd)
 	if err := sess.Run(deployCmd); err != nil {
-		return err
+		return fmt.Errorf("run deploy command %q: %w", deployCmd, err)
 	}
 
 	return nil
@@ -163,13 +163,13 @@ func (a *DeployAction) Action(ctx context.Context, cmd *cli.Command) error {
 func (a *DeployAction) createArchive() (string, func(), error) {
 	tempFile, err := os.CreateTemp("", "ship*.zip")
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("create temp file for archive: %w", err)
 	}
 	defer tempFile.Close()
 
 	cleanup := func() {
 		if err := os.Remove(tempFile.Name()); err != nil {
-			fmt.Printf("Failed to remove temp archive file %q: %v", tempFile.Name(), err)
+			fmt.Printf("Failed to remove temp archive file %q: %v\n", tempFile.Name(), err)
 		}
 	}
 
@@ -178,17 +178,17 @@ func (a *DeployAction) createArchive() (string, func(), error) {
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		return "", cleanup, err
+		return "", cleanup, fmt.Errorf("determine working directory: %w", err)
 	}
 
 	walkErr := filepath.Walk(cwd, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
-			return walkErr
+			return fmt.Errorf("walk into %q: %w", path, walkErr)
 		}
 
 		relPath, err := filepath.Rel(cwd, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("relativize path %q: %w", path, err)
 		}
 		if relPath == "." {
 			return nil
@@ -202,7 +202,7 @@ func (a *DeployAction) createArchive() (string, func(), error) {
 		// Write the ZIP header
 		header, err := zip.FileInfoHeader(info)
 		if err != nil {
-			return err
+			return fmt.Errorf("create zip header for %q: %w", relPath, err)
 		}
 		header.Name = relPath
 		if info.IsDir() {
@@ -211,7 +211,7 @@ func (a *DeployAction) createArchive() (string, func(), error) {
 		header.Method = zip.Deflate
 		writer, err := zipWriter.CreateHeader(header)
 		if err != nil {
-			return err
+			return fmt.Errorf("create zip entry for %q: %w", relPath, err)
 		}
 
 		// If it's a directory, nothing more to do
@@ -222,17 +222,20 @@ func (a *DeployAction) createArchive() (string, func(), error) {
 		// Write the file content
 		file, err := os.Open(path)
 		if err != nil {
-			return err
+			return fmt.Errorf("open %q: %w", path, err)
 		}
-		defer file.Close()
 		if _, err := io.Copy(writer, file); err != nil {
-			return err
+			file.Close()
+			return fmt.Errorf("copy %q into archive: %w", path, err)
+		}
+		if err := file.Close(); err != nil {
+			return fmt.Errorf("close %q after copying: %w", path, err)
 		}
 
 		return nil
 	})
 	if walkErr != nil {
-		return "", cleanup, walkErr
+		return "", cleanup, fmt.Errorf("walk project directory: %w", walkErr)
 	}
 
 	return tempFile.Name(), cleanup, nil
@@ -244,7 +247,7 @@ func (a *DeployAction) uploadArchive(
 	// Open the local archive file
 	archiveFile, err := os.Open(localArchive)
 	if err != nil {
-		return err
+		return fmt.Errorf("open archive %q: %w", localArchive, err)
 	}
 	defer archiveFile.Close()
 
@@ -252,24 +255,25 @@ func (a *DeployAction) uploadArchive(
 	remoteAppDir := fmt.Sprintf("/home/deploy/apps/%s/%s", appName, appVersion)
 	sess, err := a.ssh.NewSession()
 	if err != nil {
-		return err
+		return fmt.Errorf("create SSH session for archive upload: %w", err)
 	}
 	defer sess.Close()
 	sess.Stdout = os.Stdout
 	sess.Stderr = os.Stderr
-	if err := sess.Run(fmt.Sprintf("mkdir -p %s", remoteAppDir)); err != nil {
-		return err
+	mkdirCmd := fmt.Sprintf("mkdir -p %s", remoteAppDir)
+	if err := sess.Run(mkdirCmd); err != nil {
+		return fmt.Errorf("run remote command %q: %w", mkdirCmd, err)
 	}
 
 	// Upload the archive to the server
 	remoteArchive := fmt.Sprintf("%s/archive.zip", remoteAppDir)
 	client, err := scp.NewClientBySSH(a.ssh)
 	if err != nil {
-		return err
+		return fmt.Errorf("create SCP client: %w", err)
 	}
 	defer client.Close()
 	if err := client.CopyFromFile(ctx, *archiveFile, remoteArchive, "0755"); err != nil {
-		return err
+		return fmt.Errorf("copy archive to %q: %w", remoteArchive, err)
 	}
 
 	return nil

@@ -23,7 +23,7 @@ func (a *MachineCreateAction) init(_ context.Context, cmd *cli.Command) (cleanup
 
 	token := cmd.String("token")
 	if token == "" {
-		initErr = fmt.Errorf("Hetzner API token is required")
+		initErr = fmt.Errorf("hetzner API token is required")
 		return
 	}
 	a.hetzner = hcloud.NewClient(hcloud.WithToken(token))
@@ -50,15 +50,15 @@ func (a *MachineCreateAction) Action(ctx context.Context, cmd *cli.Command) erro
 		serverName = fmt.Sprintf("ship-%s", time.Now().Format("2006-01-02-15-04"))
 	}
 	if sshKeyName == "" || serverName == "" || serverSize == "" || location == "" {
-		return fmt.Errorf("SSH key name, server name, server size, and location are required")
+		return fmt.Errorf("ssh key name, server name, server size, and location are required")
 	}
 	if err := a.createServer(ctx, sshKeyName, serverName, serverSize, location); err != nil {
-		return err
+		return fmt.Errorf("create server: %w", err)
 	}
 
 	// Wait for the server to be running on Hetzner
 	if err := a.waitForServer(ctx, serverName); err != nil {
-		return err
+		return fmt.Errorf("wait for server %q: %w", serverName, err)
 	}
 
 	return nil
@@ -70,7 +70,7 @@ func (a *MachineCreateAction) createServer(
 	// Find the SSH key ID from Hetzner
 	sshKeys, err := a.hetzner.SSHKey.All(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("list ssh keys: %w", err)
 	}
 	var sshKeyID int64 = -1
 	for _, k := range sshKeys {
@@ -80,7 +80,7 @@ func (a *MachineCreateAction) createServer(
 		}
 	}
 	if sshKeyID == -1 {
-		return fmt.Errorf("SSH key %q not found on Hetzner", sshKeyName)
+		return fmt.Errorf("ssh key %q not found on hetzner", sshKeyName)
 	}
 
 	// Create the server on Hetzner
@@ -94,10 +94,10 @@ func (a *MachineCreateAction) createServer(
 		UserData:   userData,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("create server %q on hetzner: %w", serverName, err)
 	}
 	if server.Server == nil {
-		return fmt.Errorf("Failed to create server %q on Hetzner", serverName)
+		return fmt.Errorf("failed to create server %q on hetzner", serverName)
 	}
 
 	return nil
@@ -114,16 +114,16 @@ func (a *MachineCreateAction) waitForServer(
 	for {
 		time.Sleep(5 * time.Second)
 		if time.Since(waitStartTime) > maxWaitDuration {
-			return fmt.Errorf("Timed out waiting for server %q to be running", serverName)
+			return fmt.Errorf("timed out waiting for server %q to be running", serverName)
 		}
 
 		s, _, err := a.hetzner.Server.GetByName(ctx, serverName)
 		server = s
 		if err != nil {
-			return err
+			return fmt.Errorf("fetch server %q: %w", serverName, err)
 		}
 		if server == nil {
-			return fmt.Errorf("Server %q not found", serverName)
+			return fmt.Errorf("server %q not found", serverName)
 		}
 		if s.Status == hcloud.ServerStatusRunning {
 			break

@@ -2,226 +2,162 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 
 	"github.com/urfave/cli/v3"
 )
 
-type DeployAction struct{}
+type deployArgs struct {
+	AppName    string
+	AppVersion string
+}
+
+func (a *deployArgs) parse(cmd *cli.Command) {
+	a.AppName = cmd.String("app-name")
+	a.AppVersion = cmd.String("app-version")
+}
+
+func (a deployArgs) validate() error {
+	alphaNumRegex := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	if a.AppName == "" {
+		return fmt.Errorf("app name is required")
+	}
+	if !alphaNumRegex.MatchString(a.AppName) {
+		return fmt.Errorf("app name can only contain letters, numbers, dashes, and underscores")
+	}
+	if a.AppVersion == "" {
+		return fmt.Errorf("app version is required")
+	}
+	if !alphaNumRegex.MatchString(a.AppVersion) {
+		return fmt.Errorf("app version can only contain letters, numbers, dashes, and underscores")
+	}
+	return nil
+}
+
+type DeployAction struct {
+	args deployArgs
+}
 
 func NewDeployAction() *DeployAction {
 	return &DeployAction{}
 }
 
 func (a *DeployAction) Action(ctx context.Context, cmd *cli.Command) error {
-	var (
-		appName    = cmd.String("app-name")
-		appVersion = cmd.String("app-version")
-	)
-	if appName == "" || appVersion == "" {
-		return fmt.Errorf("app name and version are required")
-	}
-
-	// Check that the `archive.zip` file exists where it is expected to be
-	archivePath := filepath.Join("/home/deploy/apps", appName, appVersion, "archive.zip")
-	if _, err := os.Stat(archivePath); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("Archive %q not found", archivePath)
-		}
+	a.args = deployArgs{}
+	a.args.parse(cmd)
+	if err := a.args.validate(); err != nil {
 		return err
 	}
 
-	// Make sure there are no other files in the archive directory
-	if err := a.cleanArchiveDir(filepath.Dir(archivePath)); err != nil {
+	archivePath := filepath.Join("/home/deploy/apps", a.args.AppName, a.args.AppVersion, "archive.zip")
+	if err := checkFileExists(archivePath); err != nil {
 		return err
 	}
 
-	// Extract the archive.zip file
-	if err := a.extractArchive(ctx, archivePath); err != nil {
+	if entries, err := listDirEntries(filepath.Dir(archivePath)); err != nil {
 		return err
-	}
-	if err := os.Remove(archivePath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		fmt.Printf("Warning: failed to remove archive %q: %v\n", archivePath, err)
+	} else if len(entries) > 1 {
+		return fmt.Errorf("archive directory %q is not empty", filepath.Dir(archivePath))
 	}
 
-	// Make sure the `data` and `secrets` directories exist
-	dirsToCreate := []string{
-		"data",
-		"secrets",
-		fmt.Sprintf("%s/.ship", appVersion),
+	if err := a.execRun(ctx, "unzip", "-oq", archivePath, "-d", filepath.Dir(archivePath)); err != nil {
+		return err
 	}
-	for _, dir := range dirsToCreate {
-		path := filepath.Join("/home/deploy/apps", appName, dir)
-		if err := os.MkdirAll(path, 0o777); err != nil {
+	if err := removeFile(archivePath); err != nil {
+		fmt.Printf("Failed to remove the archive.zip file: %v\n", err)
+	}
+
+	for _, dir := range []string{
+		filepath.Join("/home/deploy/apps", a.args.AppName, "volumes"),
+		filepath.Join("/home/deploy/apps", a.args.AppName, "secrets"),
+		filepath.Join("/home/deploy/apps", a.args.AppName, a.args.AppVersion, ".ship"),
+	} {
+		if err := ensureDirExists(dir, 0o777); err != nil {
 			return err
 		}
 	}
 
-	// Make sure the `data` and `secrets` directories are symlinked into the app directory
-	symlinksToCreate := []struct {
+	for _, l := range []struct {
 		src string
 		dst string
 	}{
 		{
-			src: filepath.Join("/home/deploy/apps", appName, "data"),
-			dst: filepath.Join("/home/deploy/apps", appName, appVersion, ".ship", "data"),
+			src: filepath.Join("/home/deploy/apps", a.args.AppName, "volumes"),
+			dst: filepath.Join("/home/deploy/apps", a.args.AppName, a.args.AppVersion, ".ship", "volumes"),
 		},
 		{
-			src: filepath.Join("/home/deploy/apps", appName, "secrets"),
-			dst: filepath.Join("/home/deploy/apps", appName, appVersion, ".ship", "secrets"),
+			src: filepath.Join("/home/deploy/apps", a.args.AppName, "secrets"),
+			dst: filepath.Join("/home/deploy/apps", a.args.AppName, a.args.AppVersion, ".ship", "secrets"),
 		},
-	}
-	for _, link := range symlinksToCreate {
-		if err := os.RemoveAll(link.dst); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-		if err := os.Symlink(link.src, link.dst); err != nil {
-			return err
-		}
-	}
-
-	// Make sure `current` symlink points to the new version
-	if err := a.updateCurrentSymlink(appName, appVersion); err != nil {
-		return err
-	}
-
-	// Restart the application using Docker Compose
-	if err := a.restartApp(ctx, appName, appVersion); err != nil {
-		return err
-	}
-
-	// Reconcile Caddy configuration if a Caddyfile is present
-	if err := a.reconcileCaddy(ctx, appName, appVersion); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (a *DeployAction) cleanArchiveDir(archiveDir string) error {
-	entries, err := os.ReadDir(archiveDir)
-	if err != nil {
-		return err
-	}
-
-	for _, entry := range entries {
-		if entry.Name() == "archive.zip" {
-			continue
-		}
-		path := filepath.Join(archiveDir, entry.Name())
-		if err := os.RemoveAll(path); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (a *DeployAction) extractArchive(ctx context.Context, archivePath string) error {
-	cmd := exec.CommandContext(ctx, "unzip", "-oq", archivePath, "-d", filepath.Dir(archivePath))
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-func (a *DeployAction) updateCurrentSymlink(appName, appVersion string) error {
-	currentLink := filepath.Join("/home/deploy/apps", appName, "current")
-
-	if err := os.RemoveAll(currentLink); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-
-	if err := os.Symlink(
-		filepath.Join("/home/deploy/apps", appName, appVersion),
-		currentLink,
-	); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (a *DeployAction) restartApp(ctx context.Context, appName, appVersion string) error {
-	composeFilePath := filepath.Join("/home/deploy/apps", appName, appVersion, "compose.yml")
-	if _, err := os.Stat(composeFilePath); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			fmt.Printf("No compose.yml found for app %q, skipping Docker Compose steps\n", appName)
-			return nil
-		}
-		return err
-	}
-
-	for _, cmd := range []struct {
-		name string
-		args []string
-		env  []string
-	}{
-		{"docker", []string{"compose", "pull"}, nil},
-		{"docker", []string{"compose", "build"}, []string{"VERSION=" + appVersion}},
-		{"docker", []string{"compose", "up", "-d", "--remove-orphans"}, []string{"VERSION=" + appVersion}},
+		{
+			src: filepath.Join("/home/deploy/apps", a.args.AppName, a.args.AppVersion),
+			dst: filepath.Join("/home/deploy/apps", a.args.AppName, "current"),
+		},
 	} {
-		c := exec.CommandContext(ctx, cmd.name, cmd.args...)
-		c.Dir = filepath.Dir(composeFilePath)
-		c.Env = append(os.Environ(), cmd.env...)
-		c.Stdout = os.Stdout
-		c.Stderr = os.Stderr
-		if err := c.Run(); err != nil {
+		if err := symlink(l.src, l.dst); err != nil {
 			return err
 		}
+	}
+
+	if err := checkFileExists(
+		filepath.Join("/home/deploy/apps", a.args.AppName, a.args.AppVersion, ".ship", "compose.yml"),
+	); err == nil {
+		for _, c := range [][]string{
+			{"docker", "compose", "pull", "-f", "./.ship/compose.yml"},
+			{"docker", "compose", "build", "-f", "./.ship/compose.yml", "--pull", "--build-arg", "VERSION=" + a.args.AppVersion},
+			{"docker", "compose", "up", "-f", "./.ship/compose.yml", "-d", "--remove-orphans", "--no-build"},
+		} {
+			if err := a.execRunInDir(
+				ctx,
+				filepath.Join("/home/deploy/apps", a.args.AppName, a.args.AppVersion),
+				c[0], c[1:]...,
+			); err != nil {
+				return err
+			}
+		}
+	} else {
+		fmt.Printf("No .ship/compose.yml found, skipping Docker Compose steps\n")
+	}
+
+	if err := checkFileExists(
+		filepath.Join("/home/deploy/apps", a.args.AppName, a.args.AppVersion, ".ship", "Caddyfile"),
+	); err == nil {
+		for _, c := range [][]string{
+			{"cp", "./.ship/Caddyfile", "/root/.caddy/sites-enabled/" + a.args.AppName},
+			{"chown", "root:root", "/root/.caddy/sites-enabled/" + a.args.AppName},
+			{"chmod", "644", "/root/.caddy/sites-enabled/" + a.args.AppName},
+			{"docker", "compose", "exec", "caddy", "caddy", "reload", "--config", "/etc/caddy/Caddyfile"},
+		} {
+			if err := a.execRunInDir(
+				ctx,
+				filepath.Join("/home/deploy/apps", a.args.AppName, a.args.AppVersion),
+				c[0], c[1:]...,
+			); err != nil {
+				return err
+			}
+		}
+	} else {
+		fmt.Printf("No .ship/Caddyfile found, skipping Caddy steps\n")
 	}
 
 	return nil
 }
 
-func (a *DeployAction) reconcileCaddy(ctx context.Context, appName, appVersion string) error {
-	caddyfilePath := filepath.Join("/home/deploy/apps", appName, appVersion, "Caddyfile")
-	if _, err := os.Stat(caddyfilePath); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			fmt.Printf("No Caddyfile found for app %q, skipping Caddy reconciliation\n", appName)
-			return nil
-		}
-		return err
-	}
-
-	caddyRoot := "/root/.caddy"
-	caddySitesEnabled := filepath.Join(caddyRoot, "sites-enabled")
-
-	if err := copyFile(
-		caddyfilePath,
-		filepath.Join(caddySitesEnabled, appName),
-	); err != nil {
-		return err
-	}
-
-	cmd := exec.CommandContext(ctx, "docker", "compose", "exec", "caddy",
-		"caddy", "reload", "--config", "/etc/caddy/Caddyfile")
-	cmd.Dir = caddyRoot
+func (a *DeployAction) execRun(ctx context.Context, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	if _, err := io.Copy(out, in); err != nil {
-		return err
-	}
-
-	return nil
+func (a *DeployAction) execRunInDir(ctx context.Context, dir string, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }

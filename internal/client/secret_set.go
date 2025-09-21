@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
+	"github.com/markusylisiurunen/ship/internal/constant"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/crypto/ssh"
 )
@@ -68,7 +69,7 @@ func (a *SecretSetAction) init(ctx context.Context, cmd *cli.Command) (cleanup f
 	}
 	if client, err := ssh.Dial(
 		"tcp",
-		fmt.Sprintf("%s:67", server.PublicNet.IPv4.IP.String()),
+		fmt.Sprintf("%s:%d", server.PublicNet.IPv4.IP.String(), constant.SSH.Port),
 		&ssh.ClientConfig{
 			Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
@@ -105,7 +106,7 @@ func (a *SecretSetAction) Action(ctx context.Context, cmd *cli.Command) error {
 	cmds := []string{
 		fmt.Sprintf(`mkdir -p /home/deploy/apps/%s/secrets`, appName),
 		fmt.Sprintf(`echo -n %q > /home/deploy/apps/%s/secrets/%s`, secretValue, appName, secretName),
-		fmt.Sprintf(`chmod 644 /home/deploy/apps/%s/secrets/%s`, appName, secretName),
+		fmt.Sprintf(`chmod 640 /home/deploy/apps/%s/secrets/%s`, appName, secretName),
 	}
 	sess, err := a.ssh.NewSession()
 	if err != nil {

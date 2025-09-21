@@ -11,6 +11,12 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+const (
+	appVolumesDirPerm os.FileMode = 0o770
+	appSecretsDirPerm os.FileMode = 0o750
+	appShipDirPerm    os.FileMode = 0o750
+)
+
 type deployArgs struct {
 	AppName     string
 	AppVersion  string
@@ -83,12 +89,15 @@ func (a *DeployAction) Action(ctx context.Context, cmd *cli.Command) error {
 		fmt.Printf("Failed to remove the archive.zip file: %v\n", err)
 	}
 
-	for _, dir := range []string{
-		filepath.Join("/home/deploy/apps", a.args.AppName, "volumes"),
-		filepath.Join("/home/deploy/apps", a.args.AppName, "secrets"),
-		filepath.Join("/home/deploy/apps", a.args.AppName, a.args.AppVersion, ".ship"),
+	for _, dir := range []struct {
+		path string
+		perm os.FileMode
+	}{
+		{path: filepath.Join("/home/deploy/apps", a.args.AppName, "volumes"), perm: appVolumesDirPerm},
+		{path: filepath.Join("/home/deploy/apps", a.args.AppName, "secrets"), perm: appSecretsDirPerm},
+		{path: filepath.Join("/home/deploy/apps", a.args.AppName, a.args.AppVersion, ".ship"), perm: appShipDirPerm},
 	} {
-		if err := ensureDirExists(dir, 0o777); err != nil {
+		if err := ensureDirExists(dir.path, dir.perm); err != nil {
 			return err
 		}
 	}
@@ -96,7 +105,7 @@ func (a *DeployAction) Action(ctx context.Context, cmd *cli.Command) error {
 	if len(a.args.VolumeNames) > 0 {
 		for _, v := range a.args.VolumeNames {
 			volumePath := filepath.Join("/home/deploy/apps", a.args.AppName, "volumes", v)
-			if err := ensureDirExists(volumePath, 0o777); err != nil {
+			if err := ensureDirExists(volumePath, appVolumesDirPerm); err != nil {
 				return err
 			}
 		}

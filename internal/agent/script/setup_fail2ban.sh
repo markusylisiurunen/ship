@@ -6,7 +6,7 @@ findtime = 300
 maxretry = 8
 EOF
 
-systemctl status fail2ban
+systemctl enable --now fail2ban
 
 fail2ban-client reload
 fail2ban-client status

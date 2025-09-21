@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
+	"github.com/markusylisiurunen/ship/internal/constant"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/crypto/ssh"
 )
@@ -67,7 +68,7 @@ func (a *MachineUpAction) init(ctx context.Context, cmd *cli.Command) (cleanup f
 	}
 	if client, err := ssh.Dial(
 		"tcp",
-		fmt.Sprintf("%s:67", server.PublicNet.IPv4.IP.String()),
+		fmt.Sprintf("%s:%d", server.PublicNet.IPv4.IP.String(), constant.SSH.Port),
 		&ssh.ClientConfig{
 			Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),

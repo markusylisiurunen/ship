@@ -3,9 +3,12 @@ package client
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
+	"github.com/markusylisiurunen/ship/internal/constant"
 	"github.com/urfave/cli/v3"
 )
 
@@ -91,7 +94,7 @@ func (a *MachineCreateAction) createServer(
 		Name:       serverName,
 		SSHKeys:    []*hcloud.SSHKey{{ID: sshKeyID}},
 		ServerType: &hcloud.ServerType{Name: serverSize},
-		UserData:   userData,
+		UserData:   strings.ReplaceAll(userData, "{{PORT}}", strconv.Itoa(constant.SSH.Port)),
 	})
 	if err != nil {
 		return fmt.Errorf("create server %q on hetzner: %w", serverName, err)
@@ -154,8 +157,8 @@ chown -R deploy:deploy /home/deploy/.ssh
 chmod 700 /home/deploy/.ssh
 chmod 600 /home/deploy/.ssh/authorized_keys
 
-sed -i 's/^#Port 22/Port 67/' /etc/ssh/sshd_config
-sed -i 's/^Port 22/Port 67/' /etc/ssh/sshd_config
+sed -i 's/^#Port 22/Port {{PORT}}/' /etc/ssh/sshd_config
+sed -i 's/^Port 22/Port {{PORT}}/' /etc/ssh/sshd_config
 
 systemctl daemon-reload
 systemctl restart ssh.socket

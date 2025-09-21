@@ -3,7 +3,10 @@ package agent
 import (
 	"context"
 	_ "embed"
+	"strconv"
+	"strings"
 
+	"github.com/markusylisiurunen/ship/internal/constant"
 	"github.com/markusylisiurunen/ship/internal/reconcile"
 	"github.com/urfave/cli/v3"
 )
@@ -37,6 +40,7 @@ func (a *UpAction) Action(ctx context.Context, cmd *cli.Command) error {
 			"ca-certificates",
 			"curl",
 			"fail2ban",
+			"git",
 			"jq",
 			"tree",
 			"ufw",
@@ -45,11 +49,11 @@ func (a *UpAction) Action(ctx context.Context, cmd *cli.Command) error {
 	})
 	// Setup `ufw` firewall with some basic rules (allowing only SSH, HTTP, HTTPS)
 	steps = append(steps, &reconcile.Ufw{
-		AllowedTcpPorts: []int{67, 80, 443},
+		AllowedTcpPorts: []int{constant.SSH.Port, 80, 443},
 	})
 	// Setup the SSH daemon configuration for better security
 	steps = append(steps, &reconcile.RawScript{
-		Script: setupSshdConfigSh,
+		Script: strings.ReplaceAll(setupSshdConfigSh, "{{PORT}}", strconv.Itoa(constant.SSH.Port)),
 	})
 	// Setup `fail2ban` to protect against brute-force attacks
 	steps = append(steps, &reconcile.RawScript{

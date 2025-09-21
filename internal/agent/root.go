@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -49,12 +50,30 @@ func checkFileExists(path string) error {
 
 // ensureDirExists checks if a directory exists at the given path, and creates it with the specified mode if it does not.
 func ensureDirExists(path string, perm os.FileMode) error {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	info, err := os.Stat(path)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
 		if err := os.MkdirAll(path, perm); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", path, err)
 		}
+		if perm != 0 {
+			if err := os.Chmod(path, perm); err != nil {
+				return fmt.Errorf("failed to set permissions on %s: %w", path, err)
+			}
+		}
+		return nil
+	case err != nil:
+		return fmt.Errorf("error checking directory %s: %w", path, err)
+	case !info.IsDir():
+		return fmt.Errorf("%s exists and is not a directory", path)
+	default:
+		if perm != 0 && info.Mode().Perm() != perm {
+			if err := os.Chmod(path, perm); err != nil {
+				return fmt.Errorf("failed to update permissions on %s: %w", path, err)
+			}
+		}
+		return nil
 	}
-	return nil
 }
 
 // listDirEntries lists the entries in the specified directory.

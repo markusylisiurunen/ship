@@ -193,7 +193,7 @@ func copyVersionedAgentBinaryToServer(
 	version string,
 ) error {
 	var agentBinaryDownloadURL = fmt.Sprintf(
-		"https://github.com/markusylisiurunen/ship/releases/download/%s/ship_agent_linux_amd64.tar.gz",
+		"https://github.com/markusylisiurunen/ship/releases/download/v%s/ship_agent_linux_amd64.tar.gz",
 		version,
 	)
 

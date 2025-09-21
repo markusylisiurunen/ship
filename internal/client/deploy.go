@@ -142,10 +142,18 @@ func (a *DeployAction) Action(ctx context.Context, cmd *cli.Command) error {
 	defer sess.Close()
 	sess.Stdout = os.Stdout
 	sess.Stderr = os.Stderr
-	if err := sess.Run(
-		fmt.Sprintf("/home/deploy/.ship/%s/agent deploy --app-name %s --app-version %s",
-			a.version, appName, appVersion),
-	); err != nil {
+	deployCmd := fmt.Sprintf("/home/deploy/.ship/%s/agent deploy --app-name %s --app-version %s",
+		a.version, appName, appVersion)
+	if volumeNames := cmd.StringSlice("volume"); len(volumeNames) > 0 {
+		for _, volumeName := range volumeNames {
+			if !alphaNumericRegexp.MatchString(volumeName) {
+				return fmt.Errorf("Volume name %q must be alphanumeric", volumeName)
+			}
+			deployCmd += fmt.Sprintf(" --volume-name %s", volumeName)
+		}
+	}
+	fmt.Printf("Running deploy command: %s\n", deployCmd)
+	if err := sess.Run(deployCmd); err != nil {
 		return err
 	}
 

@@ -25,6 +25,7 @@ func Execute(ctx context.Context, version string) {
 				Flags: []cli.Flag{
 					&cli.StringFlag{Name: "app-name", Usage: "application name", Required: true},
 					&cli.StringFlag{Name: "app-version", Usage: "application version", Required: true},
+					&cli.StringSliceFlag{Name: "volume-name", Usage: "volume name (can be specified multiple times)"},
 				},
 				Action: NewDeployAction().Action,
 			},

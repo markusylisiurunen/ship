@@ -12,13 +12,15 @@ import (
 )
 
 type deployArgs struct {
-	AppName    string
-	AppVersion string
+	AppName     string
+	AppVersion  string
+	VolumeNames []string
 }
 
 func (a *deployArgs) parse(cmd *cli.Command) {
 	a.AppName = cmd.String("app-name")
 	a.AppVersion = cmd.String("app-version")
+	a.VolumeNames = cmd.StringSlice("volume-name")
 }
 
 func (a deployArgs) validate() error {
@@ -34,6 +36,16 @@ func (a deployArgs) validate() error {
 	}
 	if !alphaNumRegex.MatchString(a.AppVersion) {
 		return fmt.Errorf("app version can only contain letters, numbers, dashes, and underscores")
+	}
+	if len(a.VolumeNames) > 0 {
+		for _, v := range a.VolumeNames {
+			if v == "" {
+				return fmt.Errorf("volume name cannot be empty")
+			}
+			if !alphaNumRegex.MatchString(v) {
+				return fmt.Errorf("volume name %q can only contain letters, numbers, dashes, and underscores", v)
+			}
+		}
 	}
 	return nil
 }
@@ -78,6 +90,15 @@ func (a *DeployAction) Action(ctx context.Context, cmd *cli.Command) error {
 	} {
 		if err := ensureDirExists(dir, 0o777); err != nil {
 			return err
+		}
+	}
+
+	if len(a.args.VolumeNames) > 0 {
+		for _, v := range a.args.VolumeNames {
+			volumePath := filepath.Join("/home/deploy/apps", a.args.AppName, "volumes", v)
+			if err := ensureDirExists(volumePath, 0o777); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -127,10 +148,10 @@ func (a *DeployAction) Action(ctx context.Context, cmd *cli.Command) error {
 		filepath.Join("/home/deploy/apps", a.args.AppName, a.args.AppVersion, ".ship", "Caddyfile"),
 	); err == nil {
 		for _, c := range [][]string{
-			{"cp", "./.ship/Caddyfile", "/root/.caddy/sites-enabled/" + a.args.AppName},
-			{"chown", "root:root", "/root/.caddy/sites-enabled/" + a.args.AppName},
-			{"chmod", "644", "/root/.caddy/sites-enabled/" + a.args.AppName},
-			{"docker", "compose", "exec", "caddy", "caddy", "reload", "--config", "/etc/caddy/Caddyfile"},
+			{"sudo", "cp", "./.ship/Caddyfile", "/root/.caddy/sites-enabled/" + a.args.AppName},
+			{"sudo", "chown", "root:root", "/root/.caddy/sites-enabled/" + a.args.AppName},
+			{"sudo", "chmod", "644", "/root/.caddy/sites-enabled/" + a.args.AppName},
+			{"sudo", "bash", "-c", "cd /root/.caddy && docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile"},
 		} {
 			if err := a.execRunInDir(
 				ctx,

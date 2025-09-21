@@ -74,7 +74,7 @@ func Execute(ctx context.Context, version string) {
 					&cli.StringFlag{Name: "server-name", Usage: "Hetzner server name", Required: true},
 					&cli.StringFlag{Name: "app-name", Usage: "application name", Required: true},
 					&cli.StringFlag{Name: "app-version", Usage: "application version", Required: true},
-					&cli.StringSliceFlag{Name: "volume-name", Usage: "persistent volume name or names"},
+					&cli.StringSliceFlag{Name: "volume-name", Usage: "volume name (can be specified multiple times)"},
 				},
 				Action: NewDeployAction(version).Action,
 			},

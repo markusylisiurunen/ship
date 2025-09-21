@@ -137,9 +137,9 @@ func (a *DeployAction) Action(ctx context.Context, cmd *cli.Command) error {
 		filepath.Join("/home/deploy/apps", a.args.AppName, a.args.AppVersion, ".ship", "compose.yml"),
 	); err == nil {
 		for _, c := range [][]string{
-			{"docker", "compose", "pull", "-f", "./.ship/compose.yml"},
-			{"docker", "compose", "build", "-f", "./.ship/compose.yml", "--pull", "--build-arg", "VERSION=" + a.args.AppVersion},
-			{"docker", "compose", "up", "-f", "./.ship/compose.yml", "-d", "--remove-orphans", "--no-build"},
+			{"docker", "compose", "-f", "./.ship/compose.yml", "pull"},
+			{"docker", "compose", "-f", "./.ship/compose.yml", "build", "--pull", "--build-arg", "VERSION=" + a.args.AppVersion},
+			{"docker", "compose", "-f", "./.ship/compose.yml", "up", "-d", "--remove-orphans", "--no-build"},
 		} {
 			if err := a.execRunInDir(
 				ctx,

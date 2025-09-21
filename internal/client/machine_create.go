@@ -157,8 +157,13 @@ chown -R deploy:deploy /home/deploy/.ssh
 chmod 700 /home/deploy/.ssh
 chmod 600 /home/deploy/.ssh/authorized_keys
 
-sed -i 's/^#Port 22/Port {{PORT}}/' /etc/ssh/sshd_config
-sed -i 's/^Port 22/Port {{PORT}}/' /etc/ssh/sshd_config
+install -d -m 0755 /etc/systemd/system/ssh.socket.d
+install -m 0644 /dev/stdin /etc/systemd/system/ssh.socket.d/override.conf <<'EOF'
+[Socket]
+ListenStream=
+ListenStream=0.0.0.0:{{PORT}}
+ListenStream=[::]:{{PORT}}
+EOF
 
 systemctl daemon-reload
 systemctl restart ssh.socket

@@ -1,0 +1,109 @@
+name: release binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build ${{ matrix.goos }}_${{ matrix.goarch }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux, darwin]
+        goarch: [amd64, arm64]
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: build agent binary
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          BIN_NAME=ship_agent
+          EXT=""
+          OUT="dist/${BIN_NAME}_${GOOS}_${GOARCH}${EXT}"
+          VERSION=$(echo "${GITHUB_REF#refs/tags/}" | sed 's/^v//')
+          go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o "$OUT" ./cmd/agent
+
+      - name: build client binary
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          BIN_NAME=ship_client
+          EXT=""
+          OUT="dist/${BIN_NAME}_${GOOS}_${GOARCH}${EXT}"
+          VERSION=$(echo "${GITHUB_REF#refs/tags/}" | sed 's/^v//')
+          go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o "$OUT" ./cmd/client
+
+      - name: package artifacts
+        run: |
+          set -euo pipefail
+          cd dist
+          NAME=ship_agent
+          tar -czf "${NAME}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" "${NAME}_${{ matrix.goos }}_${{ matrix.goarch }}"
+          rm "${NAME}_${{ matrix.goos }}_${{ matrix.goarch }}"
+          NAME=ship_client
+          tar -czf "${NAME}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" "${NAME}_${{ matrix.goos }}_${{ matrix.goarch }}"
+          rm "${NAME}_${{ matrix.goos }}_${{ matrix.goarch }}"
+
+      - name: upload agent build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ship_agent_${{ matrix.goos }}_${{ matrix.goarch }}
+          if-no-files-found: error
+          path: |
+            dist/ship_agent*.tar.gz
+            dist/ship_agent*.zip
+
+      - name: upload client build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ship_client_${{ matrix.goos }}_${{ matrix.goarch }}
+          if-no-files-found: error
+          path: |
+            dist/ship_client*.tar.gz
+            dist/ship_client*.zip
+
+  release:
+    name: create github release
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: generate checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum * > checksums.txt
+
+      - name: upload assets to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

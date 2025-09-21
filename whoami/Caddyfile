@@ -1,3 +1,0 @@
-whoami.example.com {
-	reverse_proxy whoami:8080
-}

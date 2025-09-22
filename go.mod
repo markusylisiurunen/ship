@@ -4,7 +4,7 @@ go 1.25.1
 
 require (
 	github.com/bramvdbogaerde/go-scp v1.5.0
-	github.com/hetznercloud/hcloud-go/v2 v2.23.0
+	github.com/hetznercloud/hcloud-go/v2 v2.24.0
 	github.com/urfave/cli/v3 v3.4.1
 	golang.org/x/crypto v0.42.0
 )

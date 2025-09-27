@@ -198,7 +198,7 @@ func copyVersionedAgentBinaryToServer(
 		version,
 	)
 
-	// Prepare the server and download the `agent` binary
+	// Prepare the server and download the `agent` binary with locking
 	sess, err := ssh.NewSession()
 	if err != nil {
 		return fmt.Errorf("open SSH session: %w", err)
@@ -206,30 +206,36 @@ func copyVersionedAgentBinaryToServer(
 	defer sess.Close()
 	sess.Stdout = os.Stdout
 	sess.Stderr = os.Stderr
-	cmds := []string{}
+
+	// Use a lock file to prevent concurrent installations
+	lockFile := "/tmp/ship-agent-install.lock"
+
 	if root {
-		cmds = append(cmds,
-			fmt.Sprintf("sudo mkdir -p /root/.ship/%s", version),
-			fmt.Sprintf("sudo curl -fsSL -o /root/.ship/%s/ship.tar.gz %s", version, agentBinaryDownloadURL),
-			fmt.Sprintf("sudo tar -xzf /root/.ship/%s/ship.tar.gz -C /root/.ship/%s", version, version),
-			fmt.Sprintf("sudo rm -f /root/.ship/%s/ship.tar.gz", version),
-			fmt.Sprintf("sudo mv /root/.ship/%s/ship_agent_linux_amd64 /root/.ship/%s/agent", version, version),
-			fmt.Sprintf("sudo chmod +x /root/.ship/%s/agent", version),
-			fmt.Sprintf("sudo chown root:root /root/.ship/%s/agent", version),
-		)
+		shellOneLiner := "if [ ! -f /root/.ship/%s/agent ]; then"
+		shellOneLiner += fmt.Sprintf(" mkdir -p /root/.ship/%s;", version)
+		shellOneLiner += fmt.Sprintf(" curl -fsSL -o /root/.ship/%s/ship.tar.gz %s;", version, agentBinaryDownloadURL)
+		shellOneLiner += fmt.Sprintf(" tar -xzf /root/.ship/%s/ship.tar.gz -C /root/.ship/%s;", version, version)
+		shellOneLiner += fmt.Sprintf(" rm -f /root/.ship/%s/ship.tar.gz;", version)
+		shellOneLiner += fmt.Sprintf(" mv /root/.ship/%s/ship_agent_linux_amd64 /root/.ship/%s/agent;", version, version)
+		shellOneLiner += fmt.Sprintf(" chmod +x /root/.ship/%s/agent;", version)
+		shellOneLiner += fmt.Sprintf(" chown root:root /root/.ship/%s/agent;", version)
+		shellOneLiner += " fi"
+		if err := sess.Run(fmt.Sprintf("sudo timeout 5 flock %s sh -c '%s'", lockFile, shellOneLiner)); err != nil {
+			return fmt.Errorf("install agent binary from %s: %w", agentBinaryDownloadURL, err)
+		}
 	} else {
-		cmds = append(cmds,
-			fmt.Sprintf("mkdir -p /home/deploy/.ship/%s", version),
-			fmt.Sprintf("curl -fsSL -o /home/deploy/.ship/%s/ship.tar.gz %s", version, agentBinaryDownloadURL),
-			fmt.Sprintf("tar -xzf /home/deploy/.ship/%s/ship.tar.gz -C /home/deploy/.ship/%s", version, version),
-			fmt.Sprintf("rm -f /home/deploy/.ship/%s/ship.tar.gz", version),
-			fmt.Sprintf("mv /home/deploy/.ship/%s/ship_agent_linux_amd64 /home/deploy/.ship/%s/agent", version, version),
-			fmt.Sprintf("chmod +x /home/deploy/.ship/%s/agent", version),
-			fmt.Sprintf("chown deploy:deploy /home/deploy/.ship/%s/agent", version),
-		)
-	}
-	if err := sess.Run(strings.Join(cmds, " && ")); err != nil {
-		return fmt.Errorf("install agent binary from %s: %w", agentBinaryDownloadURL, err)
+		shellOneLiner := "if [ ! -f /home/deploy/.ship/%s/agent ]; then"
+		shellOneLiner += fmt.Sprintf(" mkdir -p /home/deploy/.ship/%s;", version)
+		shellOneLiner += fmt.Sprintf(" curl -fsSL -o /home/deploy/.ship/%s/ship.tar.gz %s;", version, agentBinaryDownloadURL)
+		shellOneLiner += fmt.Sprintf(" tar -xzf /home/deploy/.ship/%s/ship.tar.gz -C /home/deploy/.ship/%s;", version, version)
+		shellOneLiner += fmt.Sprintf(" rm -f /home/deploy/.ship/%s/ship.tar.gz;", version)
+		shellOneLiner += fmt.Sprintf(" mv /home/deploy/.ship/%s/ship_agent_linux_amd64 /home/deploy/.ship/%s/agent;", version, version)
+		shellOneLiner += fmt.Sprintf(" chmod +x /home/deploy/.ship/%s/agent;", version)
+		shellOneLiner += fmt.Sprintf(" chown deploy:deploy /home/deploy/.ship/%s/agent;", version)
+		shellOneLiner += " fi"
+		if err := sess.Run(fmt.Sprintf("timeout 5 flock %s sh -c '%s'", lockFile, shellOneLiner)); err != nil {
+			return fmt.Errorf("install agent binary from %s: %w", agentBinaryDownloadURL, err)
+		}
 	}
 
 	fmt.Printf("Agent binary downloaded and installed successfully\n")

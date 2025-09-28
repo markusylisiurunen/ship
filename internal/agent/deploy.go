@@ -105,7 +105,7 @@ func (a *DeployAction) Action(ctx context.Context, cmd *cli.Command) error {
 	if len(a.args.VolumeNames) > 0 {
 		for _, v := range a.args.VolumeNames {
 			volumePath := filepath.Join("/home/deploy/apps", a.args.AppName, "volumes", v)
-			if err := ensureDirExists(volumePath, appVolumesDirPerm); err != nil {
+			if err := ensureDirExistsAndOwnedBy(volumePath, appVolumesDirPerm, "root"); err != nil {
 				return err
 			}
 		}

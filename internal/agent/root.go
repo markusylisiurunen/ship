@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/urfave/cli/v3"
 )
@@ -73,6 +74,53 @@ func ensureDirExists(path string, perm os.FileMode) error {
 			mode := fmt.Sprintf("%04o", uint32(perm.Perm()))
 			if err := exec.Command("sudo", "chmod", mode, path).Run(); err != nil {
 				return fmt.Errorf("failed to update permissions on %s: %w", path, err)
+			}
+		}
+		return nil
+	}
+}
+
+// ensureDirExistsAndOwnedBy checks if a directory exists at the given path, creates it with the specified mode if it does not, and ensures it is owned by the specified user.
+func ensureDirExistsAndOwnedBy(path string, perm os.FileMode, owner string) error {
+	info, err := os.Stat(path)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		if err := exec.Command("sudo", "mkdir", "-p", path).Run(); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", path, err)
+		}
+		if perm != 0 {
+			mode := fmt.Sprintf("%04o", uint32(perm.Perm()))
+			if err := exec.Command("sudo", "chmod", mode, path).Run(); err != nil {
+				return fmt.Errorf("failed to set permissions on %s: %w", path, err)
+			}
+		}
+		if owner != "" {
+			if err := exec.Command("sudo", "chown", owner, path).Run(); err != nil {
+				return fmt.Errorf("failed to set ownership on %s: %w", path, err)
+			}
+		}
+		return nil
+	case err != nil:
+		return fmt.Errorf("error checking directory %s: %w", path, err)
+	case !info.IsDir():
+		return fmt.Errorf("%s exists and is not a directory", path)
+	default:
+		if perm != 0 && info.Mode().Perm() != perm.Perm() {
+			mode := fmt.Sprintf("%04o", uint32(perm.Perm()))
+			if err := exec.Command("sudo", "chmod", mode, path).Run(); err != nil {
+				return fmt.Errorf("failed to update permissions on %s: %w", path, err)
+			}
+		}
+		if owner != "" {
+			out, err := exec.Command("sudo", "stat", "-c", "%U", path).Output()
+			if err != nil {
+				return fmt.Errorf("failed to get ownership of %s: %w", path, err)
+			}
+			currentOwner := strings.TrimSpace(string(out))
+			if currentOwner != owner {
+				if err := exec.Command("sudo", "chown", owner, path).Run(); err != nil {
+					return fmt.Errorf("failed to update ownership on %s: %w", path, err)
+				}
 			}
 		}
 		return nil

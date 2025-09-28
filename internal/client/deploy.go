@@ -145,7 +145,7 @@ func (a *DeployAction) Action(ctx context.Context, cmd *cli.Command) error {
 	sess.Stderr = os.Stderr
 	deployCmd := fmt.Sprintf("/home/deploy/.ship/%s/agent deploy --app-name %s --app-version %s",
 		a.version, appName, appVersion)
-	if volumeNames := cmd.StringSlice("volume"); len(volumeNames) > 0 {
+	if volumeNames := cmd.StringSlice("volume-name"); len(volumeNames) > 0 {
 		for _, volumeName := range volumeNames {
 			if !alphaNumericRegexp.MatchString(volumeName) {
 				return fmt.Errorf("volume name %q can only contain letters, numbers, dashes, and underscores", volumeName)

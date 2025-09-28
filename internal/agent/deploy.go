@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	appVolumesDirPerm os.FileMode = 0o770
+	appVolumesDirPerm os.FileMode = 0o777
 	appSecretsDirPerm os.FileMode = 0o750
 	appShipDirPerm    os.FileMode = 0o750
 )

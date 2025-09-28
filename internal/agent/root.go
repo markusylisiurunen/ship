@@ -95,7 +95,7 @@ func ensureDirExistsAndOwnedBy(path string, perm os.FileMode, owner string) erro
 			}
 		}
 		if owner != "" {
-			if err := exec.Command("sudo", "chown", owner, path).Run(); err != nil {
+			if err := exec.Command("sudo", "chown", fmt.Sprintf("%s:%s", owner, owner), path).Run(); err != nil {
 				return fmt.Errorf("failed to set ownership on %s: %w", path, err)
 			}
 		}
@@ -118,7 +118,7 @@ func ensureDirExistsAndOwnedBy(path string, perm os.FileMode, owner string) erro
 			}
 			currentOwner := strings.TrimSpace(string(out))
 			if currentOwner != owner {
-				if err := exec.Command("sudo", "chown", owner, path).Run(); err != nil {
+				if err := exec.Command("sudo", "chown", fmt.Sprintf("%s:%s", owner, owner), path).Run(); err != nil {
 					return fmt.Errorf("failed to update ownership on %s: %w", path, err)
 				}
 			}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/urfave/cli/v3"
 )
@@ -53,11 +54,12 @@ func ensureDirExists(path string, perm os.FileMode) error {
 	info, err := os.Stat(path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		if err := os.MkdirAll(path, perm); err != nil {
+		if err := exec.Command("sudo", "mkdir", "-p", path).Run(); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", path, err)
 		}
 		if perm != 0 {
-			if err := os.Chmod(path, perm); err != nil {
+			mode := fmt.Sprintf("%04o", uint32(perm.Perm()))
+			if err := exec.Command("sudo", "chmod", mode, path).Run(); err != nil {
 				return fmt.Errorf("failed to set permissions on %s: %w", path, err)
 			}
 		}
@@ -67,8 +69,9 @@ func ensureDirExists(path string, perm os.FileMode) error {
 	case !info.IsDir():
 		return fmt.Errorf("%s exists and is not a directory", path)
 	default:
-		if perm != 0 && info.Mode().Perm() != perm {
-			if err := os.Chmod(path, perm); err != nil {
+		if perm != 0 && info.Mode().Perm() != perm.Perm() {
+			mode := fmt.Sprintf("%04o", uint32(perm.Perm()))
+			if err := exec.Command("sudo", "chmod", mode, path).Run(); err != nil {
 				return fmt.Errorf("failed to update permissions on %s: %w", path, err)
 			}
 		}

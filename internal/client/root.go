@@ -219,7 +219,12 @@ func copyVersionedAgentBinaryToServer(
 	sess.Stderr = os.Stderr
 
 	// Use a lock file to prevent concurrent installations
-	lockFile := "/tmp/ship-agent-install.lock"
+	var lockFile string
+	if root {
+		lockFile = "/tmp/ship-agent-install-root.lock"
+	} else {
+		lockFile = "/tmp/ship-agent-install-deploy.lock"
+	}
 
 	if root {
 		shellOneLiner := "if [ ! -f /root/.ship/%s/agent ]; then"

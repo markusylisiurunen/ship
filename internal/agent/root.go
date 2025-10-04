@@ -23,6 +23,14 @@ func Execute(ctx context.Context, version string) {
 				Action: NewUpAction(version).Action,
 			},
 			{
+				Name:  "maintain",
+				Usage: "run maintenance tasks",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{Name: "allow-reboot", Usage: "reboot the machine if necessary", Value: false},
+				},
+				Action: NewMaintainAction(version).Action,
+			},
+			{
 				Name:  "deploy",
 				Usage: "deploy an app",
 				Flags: []cli.Flag{

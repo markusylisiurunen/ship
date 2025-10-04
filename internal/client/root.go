@@ -44,6 +44,17 @@ func Execute(ctx context.Context, version string) {
 						},
 						Action: NewMachineUpAction(version).Action,
 					},
+					{
+						Name:  "maintain",
+						Usage: "run maintenance tasks on a machine on Hetzner",
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "token", Usage: "Hetzner API token", Required: true},
+							&cli.StringFlag{Name: "ssh-private-key", Usage: "SSH private key file path", Required: true},
+							&cli.StringFlag{Name: "name", Usage: "Hetzner server name", Required: true},
+							&cli.BoolFlag{Name: "allow-reboot", Usage: "reboot the machine if necessary", Value: false},
+						},
+						Action: NewMachineMaintainAction(version).Action,
+					},
 				},
 			},
 			{

@@ -5,17 +5,17 @@ description: "Apply Ship-specific compatibility, contract, ownership, and regres
 
 # Ship deslop patterns
 
-Use this skill only alongside `deslop` and its Go reference. Treat `AGENTS.md` as the source of truth for repository architecture, policy, tooling, and operational instructions; this overlay only adds Ship-specific deslop guidance.
-
 ## Compatibility and contract drift
 
 Ship is released infrastructure tooling, and other repositories download its binaries. Before removing compatibility code, check release history and consumers rather than assuming a contract never shipped.
 
 Preserve CLI commands, flags, defaults, release asset names, remote directory layouts, `.ship` conventions, volume and secret paths, and deployed symlink behavior unless an intentional migration updates every producer and consumer. Trace changes across local CLI input, archive and configuration generation, SSH invocation, remote agent parsing, reconciliation, and filesystem effects; these layers are common drift points.
 
+Collapse identical independently declared representations across those layers into one owned type. Keep separate boundary types only when their meanings differ, and make each conversion explicit and symmetric. Derive remote paths, release locations, and other reproducible values from canonical configuration at their owner instead of plumbing duplicates through client payloads, agent input, and reconciliation state.
+
 ## Ownership and regression surfaces
 
-- Keep orchestration on the client side and privileged machine-state changes on the agent and reconciliation side, following the boundaries in `AGENTS.md`. Move validation or shared data only when its owner remains unambiguous across the local-to-remote boundary.
+- Keep cloud and SSH orchestration on the client side and privileged machine-state changes on the agent and reconciliation side. Move validation or shared data only when its owner remains unambiguous across the local-to-remote boundary.
 - Keep reconcilers idempotent. Re-running machine setup, maintenance, or deployment must converge without duplicating state, corrupting a release, or locking out access.
 - Treat firewall and SSH configuration, user ownership and permissions, secrets, release directories and symlinks, and Docker/Caddy state as high-risk surfaces. Preserve checks and ordering whose purpose is outage or data-loss prevention, especially installing required firewall allow rules before first enablement.
 - Validate values at the boundary that owns them before they reach remote paths or shell construction. Do not scatter defensive checks downstream, but do not mistake externally supplied values for trusted internal state.

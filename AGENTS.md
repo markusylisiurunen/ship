@@ -9,4 +9,4 @@ Create disposable files with `mktemp`, or `mktemp -d` for a directory, instead o
 
 ## Subagents
 
-When the user asks to use GPT-6.1 Sol or GPT-6 Luna for a subagent without specifying a reasoning effort, use `openai-codex/gpt-6.1-sol:medium` or `openai-codex/gpt-6-luna:high`, respectively. When the user asks to use GPT-6 Astra without specifying a reasoning effort, use `openai-codex/gpt-6-astra:medium`.
+When the user asks to use GPT-6.1 Sol or GPT-6 Luna for a subagent without specifying a reasoning effort, use `openai-codex/gpt-6.1-sol:medium` or `openai-codex/gpt-6-luna:high`, respectively. When the user asks to use GPT-6.2 Astra without specifying a reasoning effort, use `openai-codex/gpt-6.2-astra:medium`.

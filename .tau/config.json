@@ -10,10 +10,10 @@
       "openai-codex/gpt-6-luna:medium",
       "openai-codex/gpt-6-luna:high",
       "openai-codex/gpt-6-luna:xhigh",
-      "openai-codex/gpt-6-astra:low",
-      "openai-codex/gpt-6-astra:medium",
-      "openai-codex/gpt-6-astra:high",
-      "openai-codex/gpt-6-astra:xhigh"
+      "openai-codex/gpt-6.2-astra:low",
+      "openai-codex/gpt-6.2-astra:medium",
+      "openai-codex/gpt-6.2-astra:high",
+      "openai-codex/gpt-6.2-astra:xhigh"
     ]
   }
 }

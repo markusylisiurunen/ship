@@ -1,1 +1,0 @@
-Inspect @@skill:deslop for additional guidance on evolving abstractions, preserving clean boundaries, and leaving affected code coherent. Apply relevant principles while implementing the issue, but do not perform a separate deslop pass or broaden the workflow into a general cleanup task.

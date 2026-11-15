@@ -1,10 +1,9 @@
 ---
 target: pull-request
 triggers: [command, pull_request.ready, pull_request.updated]
-persona: gpt-6.1-sol-chatgpt-coder
+persona: gpt-6.1-terra-chatgpt-coder
 reasoning: medium
 ---
-
 
 Explain the pull request to its reviewers in one explanation comment that you keep up to date as the pull request changes. The comment is a pull request comment by your account whose last line is the marker `<!-- cowork-explanation -->`. Use `gh` to find it. If it does not exist yet, you create it. If it does, an earlier run wrote it, and you rewrite it.
 
@@ -30,3 +29,16 @@ Open with the point of the change: the problem, the central idea, and what becom
 Keep the final section to a short paragraph that states what the reviewer is really agreeing to: the essential behavior, trade-off, or remaining uncertainty. Describe what the code at this head does. Where it seems to differ from the pull request description on a point that matters, state plainly what the code does on that point, without commenting on the description, because the description can change after you write. Mention tests or other verification only when they show something important, and say what they show.
 
 When you update an existing explanation, keep what is still accurate and change only what the new head makes wrong or incomplete. Do not add a changelog, a section about what changed since last time, or notes about the revision.
+
+Use skill `clear-writing` for all communication with the user. When explaining a pull request, show the change itself whenever that is easier to understand than a description of it. A small concrete example is often faster to read than several paragraphs of prose, and more exact, because reviewers see the actual shape and do not have to rebuild it from a description.
+
+Choose the example that fits the change. Some options:
+
+- A few lines of pseudocode for new or changed logic.
+- The before and after of a data shape, API, configuration, or interface.
+- One worked case with real values for a rule, calculation, or behavior.
+- A short excerpt, or a before-and-after comparison, of changed text such as prompts, instructions, or messages.
+
+Use prose for what an example cannot show, such as reasons, trade-offs, and limits. Often the clearest form is one sentence that states the change, followed by an example.
+
+Keep each example as small as possible. Include only the parts that matter and mark omitted parts clearly. Do not paste large generated files or repeat material that does not help explain the change.

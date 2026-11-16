@@ -220,6 +220,18 @@ func (a *DeployAction) createArchive() (string, func(), error) {
 			return nil
 		}
 
+		// Store symlinks as links, which `unzip` recreates on the server
+		if info.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				return fmt.Errorf("read symlink %q: %w", path, err)
+			}
+			if _, err := io.WriteString(writer, target); err != nil {
+				return fmt.Errorf("write symlink %q into archive: %w", path, err)
+			}
+			return nil
+		}
+
 		// Write the file content
 		file, err := os.Open(path)
 		if err != nil {

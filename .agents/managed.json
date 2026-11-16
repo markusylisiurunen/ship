@@ -1,0 +1,305 @@
+{
+  "version": 1,
+  "files": {
+    ".agents/skills/address-review-comments/SKILL.md": {
+      "type": "file",
+      "hash": "71469ac66b1324f05b43b29f52556e86f321aa1e22ad200cfddedeb759bc4405"
+    },
+    ".agents/skills/agent-browser/SKILL.md": {
+      "type": "file",
+      "hash": "836fae3fe3208edf4177c9902b94ad8fbeada9f5b942458d3357f28d1dc34e4c"
+    },
+    ".agents/skills/be-ambitious/SKILL.md": {
+      "type": "file",
+      "hash": "097796b80d58f5d67a873ddc6dd37a3a95806b5fae91f7c233e1de04804b5289"
+    },
+    ".agents/skills/clear-writing/SKILL.md": {
+      "type": "file",
+      "hash": "3d5f808d92b394c087d44de2775e2861539ddc6835e521d17652fea1a5d817ca"
+    },
+    ".agents/skills/code-review/SKILL.md": {
+      "type": "file",
+      "hash": "c45ec0492687049d8db7ef7de31721295a23082805fb33b30aa96231c2bd67e5"
+    },
+    ".agents/skills/cowork/references/configuration.md": {
+      "type": "file",
+      "hash": "9bcf5e99681817e7a1a1cb9e3568939081cf1ffee73275baf9c1148d6a36ab26"
+    },
+    ".agents/skills/cowork/SKILL.md": {
+      "type": "file",
+      "hash": "fcb076ee10d51bf48f15ef79293223048083409d0b4b3ba935d98d387fa06fcf"
+    },
+    ".agents/skills/decision-review/SKILL.md": {
+      "type": "file",
+      "hash": "94cd97598fc2cab573b2bcd0b7cc48d24420a08ad69708fe714840def97e6fbb"
+    },
+    ".agents/skills/design-afresh/SKILL.md": {
+      "type": "file",
+      "hash": "96668273bade893a5f68cb79d65c25252d401e616e7d0222ed339bfc1d4dae8a"
+    },
+    ".agents/skills/deslop/references/go.md": {
+      "type": "file",
+      "hash": "92f759832bfae830956b2fafe750a9af2baa83e5dc073f0f7b4ae10b3f1ba8eb"
+    },
+    ".agents/skills/deslop/references/typescript.md": {
+      "type": "file",
+      "hash": "200d8be8de6c6a32b669309b22e02817415959af2dbce57c3f9205b350439026"
+    },
+    ".agents/skills/deslop/SKILL.md": {
+      "type": "file",
+      "hash": "acd393b5cd7ef262be3db8069ac75332e88b648bc6d1274e061a848979386342"
+    },
+    ".agents/skills/github-workflow/SKILL.md": {
+      "type": "file",
+      "hash": "e7c66c9cdd3553444c22d04492d6a1bbe720fa221ce17f7c2c915426653f9e53"
+    },
+    ".agents/skills/guided-review/SKILL.md": {
+      "type": "file",
+      "hash": "f6299cc3ef7d5d1aa3c067ad36500cfede0c0114e9b6c8753c2ab0cfbf4de63d"
+    },
+    ".agents/skills/plan/SKILL.md": {
+      "type": "file",
+      "hash": "ca3124faea6ea66c313b23fe0a7ea66b79f8d008dd97f3608a15c6b28e104e56"
+    },
+    ".claude/commands/workflows/address-review-comments.md": {
+      "type": "file",
+      "hash": "1d529c48b4eef4b73722013cf6513da7fe4c7e9b8eff11f79af712fa47b5fa49"
+    },
+    ".claude/commands/workflows/code-review-changes.md": {
+      "type": "file",
+      "hash": "3be1fe36f88a642bea253d66d006415e250f534848aedccd8de91041712d0d0b"
+    },
+    ".claude/commands/workflows/decision-review-branch.md": {
+      "type": "file",
+      "hash": "fb97fa83c2bcd0b9d4343212b5ba54d56e5776c3138c50326a07e62c81468a35"
+    },
+    ".claude/commands/workflows/decision-review-changes.md": {
+      "type": "file",
+      "hash": "88cf18d2aeff36b11002980f4d54ba4bfca4eca830adf081cd8257e412523d38"
+    },
+    ".claude/commands/workflows/guided-review-branch.md": {
+      "type": "file",
+      "hash": "3db9fdb3068399152a84b5bee9ff427ac1437b75d1247a566be4ce624fac9703"
+    },
+    ".claude/commands/workflows/guided-review-changes.md": {
+      "type": "file",
+      "hash": "900cc3eefe15eca7d500bca3d39619c201ebaa7f94f13da79fe8bf4e8712abe7"
+    },
+    ".claude/commands/workflows/implement.md": {
+      "type": "file",
+      "hash": "d509d6264bf002f05b350015b672ea13a1fa2d488244b05b248c5c129a541206"
+    },
+    ".claude/commands/workflows/improve-branch.md": {
+      "type": "file",
+      "hash": "6465608b56c78101c14c722e59674923ced50a160733e097ee228022db2243db"
+    },
+    ".claude/commands/workflows/plan.md": {
+      "type": "file",
+      "hash": "e2f056690eea39338747a4e013a1fa47184540b635f3ef4581b27b44c7a96256"
+    },
+    ".claude/commands/workflows/review-and-improve-branch.md": {
+      "type": "file",
+      "hash": "3f2e94975fdcce3199f20b972ef5aaec8bbeba8cea20b66cc09183df1d3096bf"
+    },
+    ".claude/commands/workflows/review-branch.md": {
+      "type": "file",
+      "hash": "9e0573e02c6ed9001e0a52a68b7609e7ab9519c027c7d671db515b5ca02357a3"
+    },
+    ".claude/skills/address-review-comments": {
+      "type": "symlink",
+      "hash": "a2bccaca6b946b3bcabb99d136b38379593b9fde6355626624b280c39c0775c4"
+    },
+    ".claude/skills/agent-browser": {
+      "type": "symlink",
+      "hash": "42c69efa53113db14344b45869afad16976d1a55fe4d54b202a4d1995924fc45"
+    },
+    ".claude/skills/be-ambitious": {
+      "type": "symlink",
+      "hash": "57f4ddde08c4addb7c2859aa7fbe3be280dd91412ec0880a581cd19293333858"
+    },
+    ".claude/skills/clear-writing": {
+      "type": "symlink",
+      "hash": "46617475bdf19da4baa353e1b356471fc60c80ccd549efe14c87f420084beea1"
+    },
+    ".claude/skills/code-review": {
+      "type": "symlink",
+      "hash": "d5622c89fc695a20ab08cab65f699e60a61b03c98a1157dddede6c3223046fe2"
+    },
+    ".claude/skills/cowork": {
+      "type": "symlink",
+      "hash": "3bd9bb1596414bb78617b80ebea2e09913848f10353b5492e8a97f251423f3f7"
+    },
+    ".claude/skills/decision-review": {
+      "type": "symlink",
+      "hash": "304e0c47e9d476de123063eafc63397605c8deb06d4bd6dcca631234b0abcbe4"
+    },
+    ".claude/skills/design-afresh": {
+      "type": "symlink",
+      "hash": "4aba4c0ed4654524ab1eea569a3ee9ae9c8370548105f4efcb1006251114eb73"
+    },
+    ".claude/skills/deslop": {
+      "type": "symlink",
+      "hash": "4127afd0a48f4a7f2fa12c8d2c18f79a5d665db335a0682f9af81bcde968c2a8"
+    },
+    ".claude/skills/github-workflow": {
+      "type": "symlink",
+      "hash": "b26ff8c457de6045d17b1aeab51739f7107cf4f281183a9624c1fafd1f851f55"
+    },
+    ".claude/skills/guided-review": {
+      "type": "symlink",
+      "hash": "370534f21abdda1cee8c767be29c59bf9bc826581a84d4f52d0f2d747e433631"
+    },
+    ".claude/skills/plan": {
+      "type": "symlink",
+      "hash": "c5d36ae1b8458567a4b0dd5d7f7a810ce56606beb614631fadda7f7be4ed1302"
+    },
+    ".cowork/conversations/issue.md": {
+      "type": "file",
+      "hash": "f489f7eb178d7e1fbdde13ecc89480a966e32b5232884c6dce3786d47f25e5b5"
+    },
+    ".cowork/conversations/pull-request.md": {
+      "type": "file",
+      "hash": "679eafafb86cfdabb43f400d276867b79c740d6f1db0b96bc5c392eca6afae08"
+    },
+    ".cowork/diff.md": {
+      "type": "file",
+      "hash": "81c1560c9f5f30666d204c1bb9fd423bd081fdaa0abab7dd296684d38933c10a"
+    },
+    ".cowork/workflows/explain.md": {
+      "type": "file",
+      "hash": "5ce4305d7daed390ad8a101806a81116d1ded49de422ea883af3fcdbb37b8bde"
+    },
+    ".cowork/workflows/implement.md": {
+      "type": "file",
+      "hash": "2d5e47726e35c9b0590b513bdc69ca4fe8e59e2fed3a2630e1fc861a916bb2bb"
+    },
+    ".cowork/workflows/improve.md": {
+      "type": "file",
+      "hash": "3cedcdda0b6d3975e5290fa5d94ca044a7f1f519e2bf9f3b3a0d713317552859"
+    },
+    ".cowork/workflows/review-and-improve.md": {
+      "type": "file",
+      "hash": "32fce1cdfa82a22df45bddf677e69689c34f31618b62d96d3c11860f6ab5dc3e"
+    },
+    ".cowork/workflows/review.md": {
+      "type": "file",
+      "hash": "338a7d8aeea0499df4f0b28015a0e459b53fdde72fd37db50837d6210e88feb6"
+    },
+    ".cowork/workflows/rewrite.md": {
+      "type": "file",
+      "hash": "4aa9f14929058c628fee71dd51c3ffcfb300b3f8f4c7e81e4153a6be71e8e28e"
+    },
+    ".tau/config.json": {
+      "type": "file",
+      "hash": "3d48faa42b58ccd096acd97e7dcf8922df37dedec47f6f07bd138ad58733c0af"
+    },
+    ".tau/prompts/address-review-comments.md": {
+      "type": "file",
+      "hash": "a8c15ba6af57c2b824c0c2b4c3feecffef954a9136170f2615c2bcabb2d0eff8"
+    },
+    ".tau/prompts/code-review-changes.md": {
+      "type": "file",
+      "hash": "fb665a3aea5e3ad3379ae34858c443b6ae67c3eeae0e1959805e2a26c728640e"
+    },
+    ".tau/prompts/decision-review-branch.md": {
+      "type": "file",
+      "hash": "1ab3a873933811508784fad1f34a1ed82b2299aa6560b09d36f57e481462a289"
+    },
+    ".tau/prompts/decision-review-changes.md": {
+      "type": "file",
+      "hash": "3a692eaa3ec7ec912ee10fb7e40df564d2f42f1762f363598fae35f3ff2d0448"
+    },
+    ".tau/prompts/delegate-rewrite-branch.md": {
+      "type": "file",
+      "hash": "c7e7d0822123dbbb269aed8a76a5b9de2bccc3a4c49afab4debaef4482539f25"
+    },
+    ".tau/prompts/delegate-rewrite-changes.md": {
+      "type": "file",
+      "hash": "15c26908f8637bd73ef41d8e6eb26b88105b212257a39b75e4b743cb14449aa5"
+    },
+    ".tau/prompts/delegate-rewrite.md": {
+      "type": "file",
+      "hash": "2a2a995bffd46699e2eda43747a732ab68a0de9e79b3a0e90110590b58e086cd"
+    },
+    ".tau/prompts/guided-review-branch.md": {
+      "type": "file",
+      "hash": "6192f7faedfa125d8e1fb00aa9b1a79c020cbafc05662c844795a3f39e8f4536"
+    },
+    ".tau/prompts/guided-review-changes.md": {
+      "type": "file",
+      "hash": "6ca8382872e0e2c0ce0578ed082ba044c223e658edc2b40dd345597943d99f5f"
+    },
+    ".tau/prompts/implement.md": {
+      "type": "file",
+      "hash": "4d9cfdd8425b798716a18e6d8ee9ec9e7b3e525dd1700a47c78755ff6288c951"
+    },
+    ".tau/prompts/improve-branch.md": {
+      "type": "file",
+      "hash": "eb77966831417a82cc66fc68d2e028455ba52c33af8f36171a0e63a702d1156d"
+    },
+    ".tau/prompts/plan.md": {
+      "type": "file",
+      "hash": "ff73f625e8b3492eab92629dda63aa1b64c9ce71fbfeb04410ee9c797250c9d3"
+    },
+    ".tau/prompts/review-and-improve-branch.md": {
+      "type": "file",
+      "hash": "e140d4c1da0a412f33c6d591d2a3c85eab5edcacacbe01d23a307dc5c9f2988a"
+    },
+    ".tau/prompts/review-branch.md": {
+      "type": "file",
+      "hash": "c1284fd718b58ef547142dcfd0f5e2a0ed9ba6927b70483922cfa674cc15167e"
+    },
+    ".tau/skills/delegate-prose/SKILL.md": {
+      "type": "file",
+      "hash": "c573529acd2d2b5ef5579fc18a8531be5788c58698021ae92043d85baf947adb"
+    },
+    ".tau/skills/subagents/references/delegation-patterns.md": {
+      "type": "file",
+      "hash": "046100608e0921fa9cefcd45253dfbcea9c8085a95f337c0bba6c2790e9c9991"
+    },
+    ".tau/skills/subagents/SKILL.md": {
+      "type": "file",
+      "hash": "72fdb56db8a688cb3385e38c1445e843f988e50d6e67ae30d40fecf6ca78310f"
+    },
+    ".tau/skills/tau-workflows/scripts/answer-from-history.js": {
+      "type": "file",
+      "hash": "a814a33ad2d1dc6348e8feb304febec2db12d287aa8a556d11e50cca70aabce6"
+    },
+    ".tau/skills/tau-workflows/scripts/find-sessions.js": {
+      "type": "file",
+      "hash": "368d5aaae2cacc51e73bbee0abb69ac8e81ff5772e70e17fd450c9110889b3ba"
+    },
+    ".tau/skills/tau-workflows/scripts/improve.js": {
+      "type": "file",
+      "hash": "32c7cfa4f782c1e0de408639c4e3bc926cc885c63ac8716dadb8267316386007"
+    },
+    ".tau/skills/tau-workflows/scripts/lib/history.js": {
+      "type": "file",
+      "hash": "718f0fd900b95eb080231470fda6456a699ecd490c72c82213bb4bc3110566c6"
+    },
+    ".tau/skills/tau-workflows/scripts/lib/review.js": {
+      "type": "file",
+      "hash": "a2d9c6eeb878847a4904b48fa86deecb94768d6f178b72397da6cbaa8b9aecbe"
+    },
+    ".tau/skills/tau-workflows/scripts/lib/workflow.js": {
+      "type": "file",
+      "hash": "32f261173c42343825d46924cd52cb2c9df5651fe22165f5857c0af25686d90c"
+    },
+    ".tau/skills/tau-workflows/scripts/review-and-improve.js": {
+      "type": "file",
+      "hash": "0e550ea9f261b9d7d3366a76a512580f48ee71cfd36bd62c8d03b8e9ada88e8e"
+    },
+    ".tau/skills/tau-workflows/scripts/review.js": {
+      "type": "file",
+      "hash": "2607a157423feb06452dff0a3bd9156a656265bbe0e7733d1f3efafeb2f89a7e"
+    },
+    ".tau/skills/tau-workflows/SKILL.md": {
+      "type": "file",
+      "hash": "c0811215a62de893ee5054b1d96a00b7770865490103e19444c6dcaa8a2889f6"
+    },
+    "AGENTS.md": {
+      "type": "section",
+      "hash": "7ac9a67a7ef86cdf20d4393dc58d2f40258d2015ed4b9836d5d695bfe12d81ef"
+    }
+  }
+}

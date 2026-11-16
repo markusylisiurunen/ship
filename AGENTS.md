@@ -9,7 +9,7 @@ Create disposable files with `mktemp`, or `mktemp -d` for a directory, instead o
 
 ## Agent setup
 
-`.agents/managed.json` identifies centrally managed skills, prompts, configuration, and the marked section below. Change their sources in the agents repository rather than editing managed content directly. Follow each skill's activation rules. Use `github-workflow` for Git and GitHub work and `clear-writing` for prose.
+`.agents/managed.json` identifies centrally managed skills, prompts, configuration, and the marked sections below. Change their sources in the agents repository rather than editing managed content directly. Follow each skill's activation rules. Use `github-workflow` for Git and GitHub work.
 
 `.cowork/scripts/` is repo-owned. Keep lifecycle hooks safe for dirty, non-default worktrees and preserve Git state. Do not add recurring schedules unless requested.
 

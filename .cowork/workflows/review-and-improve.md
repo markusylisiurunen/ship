@@ -1,7 +1,7 @@
 ---
 target: pull-request
 triggers: [command]
-persona: gpt-6.1-sol-chatgpt-coder
+persona: gpt-6.2-sol-chatgpt-coder
 reasoning: medium
 ---
 

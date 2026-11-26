@@ -12,6 +12,7 @@ jobs:
   build:
     name: build ${{ matrix.goos }}_${{ matrix.goarch }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -87,6 +88,7 @@ jobs:
     name: create github release
     needs: build
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: download all artifacts
         uses: actions/download-artifact@v4
